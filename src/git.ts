@@ -8,6 +8,23 @@ interface ExecResult {
     code: number | null;
 }
 
+export interface GitHubUser {
+    email?: string;
+    name: string;
+    username: string;
+}
+
+export interface Commit {
+    author: GitHubUser;
+    committer: GitHubUser;
+    distinct?: unknown; // Unused
+    id: string;
+    message: string;
+    timestamp: string;
+    tree_id?: unknown; // Unused
+    url: string;
+}
+
 async function capture(cmd: string, args: string[]): Promise<ExecResult> {
     const res: ExecResult = {
         stdout: '',
@@ -86,4 +103,70 @@ export async function pull(token: string | undefined, branch: string, ...options
     }
 
     return cmd(...args);
+}
+
+
+export function getLatestPRCommit(): Commit {
+    /* eslint-disable @typescript-eslint/camelcase */
+    if (github.context.payload.head_commit) {
+        return github.context.payload.head_commit;
+    }
+
+    const pr = github.context.payload.pull_request;
+    if (!pr) {
+        throw new Error(
+            `No commit information is found in payload: ${JSON.stringify(github.context.payload, null, 2)}`,
+        );
+    }
+
+    // On pull_request hook, head_commit is not available
+    const message: string = pr.title;
+    const id: string = pr.head.sha;
+    const timestamp: string = pr.head.repo.updated_at;
+    const url = `${pr.html_url}/commits/${id}`;
+    const name: string = pr.head.user.login;
+    const user = {
+        name,
+        username: name, // XXX: Fallback, not correct
+    };
+
+    return {
+        author: user,
+        committer: user,
+        id,
+        message,
+        timestamp,
+        url,
+    };
+    /* eslint-enable @typescript-eslint/camelcase */
+}
+
+export function getBaseCommit(): Commit {
+    const pr = github.context.payload.pull_request;
+    if (!pr) {
+        throw new Error(
+            `No commit information is found in payload: ${JSON.stringify(github.context.payload, null, 2)}`,
+        );
+    }
+
+    // On pull_request hook, head_commit is not available
+    const message: string = pr.base.label;
+    const id: string = pr.base.sha;
+    const timestamp: string = pr.base.repo.updated_at;
+    const url = `${pr.base.repo.html_url}/commits/${id}`;
+    const name: string = pr.base.user.login;
+    const user = {
+        name,
+        username: name, // XXX: Fallback, not correct
+    };
+
+    return {
+        author: user,
+        committer: user,
+        id,
+        message,
+        timestamp,
+        url,
+    };
+    /* eslint-enable @typescript-eslint/camelcase */
 }

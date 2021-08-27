@@ -21,6 +21,7 @@ export interface Config {
     failThreshold: number;
     alertCommentCcUsers: string[];
     externalDataJsonPath: string | undefined;
+    baseFilePath?: string;
     maxItemsInChart: number | null;
 }
 
@@ -219,6 +220,7 @@ export async function configFromJobInput(): Promise<Config> {
     const failOnAlert = getBoolInput('fail-on-alert');
     const alertCommentCcUsers = getCommaSeparatedInput('alert-comment-cc-users');
     let externalDataJsonPath: undefined | string = core.getInput('external-data-json-path');
+    let baseFilePath: string | undefined = core.getInput('base-file-path');
     const maxItemsInChart = getUintInput('max-items-in-chart');
     let failThreshold = getPercentageInput('fail-threshold');
 
@@ -260,6 +262,7 @@ export async function configFromJobInput(): Promise<Config> {
         failOnAlert,
         alertCommentCcUsers,
         externalDataJsonPath,
+        baseFilePath,
         maxItemsInChart,
         failThreshold,
     };

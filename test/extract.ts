@@ -3,6 +3,7 @@ import { strict as A } from 'assert';
 import mock = require('mock-require');
 import { ToolType } from '../src/config';
 import { BenchmarkResult } from '../src/extract';
+import { getLatestPRCommit } from '../src/git';
 
 const dummyWebhookPayload = {
     // eslint-disable-next-line @typescript-eslint/camelcase
@@ -230,7 +231,7 @@ describe('extractResult()', function() {
                 tool: test.tool,
                 outputFilePath,
             };
-            const bench = await extractResult(config);
+            const bench = await extractResult(config.outputFilePath, config.tool, getLatestPRCommit()));
 
             A.equal(bench.commit, dummyWebhookPayload.head_commit);
             A.ok(bench.date <= Date.now(), bench.date.toString());
@@ -244,7 +245,7 @@ describe('extractResult()', function() {
             tool: 'foo',
             outputFilePath: path.join(__dirname, 'data', 'extract', 'go_output.txt'),
         };
-        await A.rejects(extractResult(config), /^Error: FATAL: Unexpected tool: 'foo'$/);
+        await A.rejects(extractResult(config.outputFilePath, config.tool, getLatestPRCommit())), /^Error: FATAL: Unexpected tool: 'foo'$/);
     });
 
     it('raises an error when output file is not readable', async function() {
@@ -252,7 +253,7 @@ describe('extractResult()', function() {
             tool: 'go',
             outputFilePath: 'path/does/not/exist.txt',
         };
-        await A.rejects(extractResult(config));
+        await A.rejects(extractResult(config.outputFilePath, config.tool, getLatestPRCommit())));
     });
 
     it('raises an error when no output found', async function() {
@@ -260,7 +261,7 @@ describe('extractResult()', function() {
             tool: 'cargo',
             outputFilePath: path.join(__dirname, 'data', 'extract', 'go_output.txt'),
         };
-        await A.rejects(extractResult(config), /^Error: No benchmark result was found in /);
+        await A.rejects(extractResult(config.outputFilePath, config.tool, getLatestPRCommit())), /^Error: No benchmark result was found in /);
     });
 
     const toolSpecificErrorCases: Array<{
@@ -282,7 +283,7 @@ describe('extractResult()', function() {
             // Note: go_output.txt is not in JSON format!
             const outputFilePath = path.join(__dirname, 'data', 'extract', t.file);
             const config = { tool: t.tool, outputFilePath };
-            await A.rejects(extractResult(config), t.expected);
+            await A.rejects(extractResult(config.outputFilePath, config.tool, getLatestPRCommit())), t.expected);
         });
     }
 
@@ -307,7 +308,7 @@ describe('extractResult()', function() {
             tool: 'go',
             outputFilePath,
         };
-        const { commit } = await extractResult(config);
+        const { commit } = await extractResult(config.outputFilePath, config.tool, getLatestPRCommit()));
         const expectedUser = {
             name: 'user',
             username: 'user',
@@ -327,6 +328,6 @@ describe('extractResult()', function() {
             tool: 'go',
             outputFilePath,
         };
-        await A.rejects(extractResult(config), /^Error: No commit information is found in payload/);
+        await A.rejects(extractResult(config.outputFilePath, config.tool, getLatestPRCommit())), /^Error: No commit information is found in payload/);
     });
 });

@@ -188,7 +188,7 @@ function buildAlertComment(
 ): string {
     // Do not show benchmark name if it is the default value 'Benchmark'.
     const benchmarkText = benchName === 'Benchmark' ? '' : ` **'${benchName}'**`;
-    const title = threshold === 0 ? '# Performance Report' : '# :warning: **Performance Alert** :warning:';
+    const title = threshold === 0 ? '# Performance Report' : '# **Performance Alert**';
     const thresholdString = floatStr(threshold);
     const lines = [
         title,
@@ -443,14 +443,14 @@ async function writeBenchmarkToGitHubPages(bench: Benchmark, config: Config): Pr
     }
 }
 
-async function loadDataJson(jsonPath: string): Promise<DataJson> {
+async function loadDataJson(jsonPath: string, hideWarning?: boolean): Promise<DataJson> {
     try {
         const content = await fs.readFile(jsonPath, 'utf8');
         const json: DataJson = JSON.parse(content);
         core.debug(`Loaded external JSON file at ${jsonPath}`);
         return json;
     } catch (err) {
-        core.warning(
+        hideWarning || core.warning(
             `Could not find external JSON file for benchmark data at ${jsonPath}. Using empty default: ${err}`,
         );
         return { ...DEFAULT_DATA_JSON };
@@ -496,4 +496,13 @@ export async function writeBenchmark(bench: Benchmark, config: Config) {
         await handleComment(name, bench, prevBench, config);
         await handleAlert(name, bench, prevBench, config);
     }
+}
+
+export async function compareBenchmark(bench: Benchmark, baseline: Benchmark, config: Config) {
+    const { name } = config;
+
+    // Put this after `git push` for reducing possibility to get conflict on push. Since sending
+    // comment take time due to API call, do it after updating remote branch.
+    await handleComment(name, bench, baseline, config);
+    await handleAlert(name, bench, baseline, config);
 }
