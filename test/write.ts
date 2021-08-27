@@ -7,7 +7,7 @@ import mock = require('mock-require');
 import rimraf = require('rimraf');
 import { Config } from '../src/config';
 import { Benchmark } from '../src/extract';
-import { DataJson } from '../src/write';
+import { DataJson } from '../src/alert';
 
 const ok: (x: any, msg?: string) => asserts x = assertOk;
 
@@ -222,97 +222,6 @@ describe('writeBenchmark()', function() {
             repoPayload?: null | RepositoryPayload;
         }> = [
             {
-                it: 'appends new result to existing data',
-                config: defaultCfg,
-                data: {
-                    lastUpdate,
-                    repoUrl,
-                    entries: {
-                        'Test benchmark': [
-                            {
-                                commit: commit('prev commit id'),
-                                date: lastUpdate - 1000,
-                                tool: 'cargo',
-                                benches: [bench('bench_fib_10', 100)],
-                            },
-                        ],
-                    },
-                },
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'cargo',
-                    benches: [bench('bench_fib_10', 135)],
-                },
-            },
-            {
-                it: 'creates new data file',
-                config: defaultCfg,
-                data: null,
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'cargo',
-                    benches: [bench('bench_fib_10', 135)],
-                },
-            },
-            {
-                it: 'creates new result suite to existing data file',
-                config: defaultCfg,
-                data: {
-                    lastUpdate,
-                    repoUrl,
-                    entries: {
-                        'Other benchmark': [
-                            {
-                                commit: commit('prev commit id'),
-                                date: lastUpdate - 1000,
-                                tool: 'cargo',
-                                benches: [bench('bench_fib_10', 10)],
-                            },
-                        ],
-                    },
-                },
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'cargo',
-                    benches: [bench('bench_fib_10', 135)],
-                },
-            },
-            {
-                it: 'appends new result to existing multiple benchmarks data',
-                config: defaultCfg,
-                data: {
-                    lastUpdate,
-                    repoUrl,
-                    entries: {
-                        'Test benchmark': [
-                            {
-                                commit: commit('prev commit id'),
-                                date: lastUpdate - 1000,
-                                tool: 'pytest',
-                                benches: [bench('bench_fib_10', 100)],
-                            },
-                        ],
-                        'Other benchmark': [
-                            {
-                                commit: commit('prev commit id'),
-                                date: lastUpdate - 1000,
-                                tool: 'cargo',
-                                benches: [bench('bench_fib_10', 10)],
-                            },
-                        ],
-                    },
-                },
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'pytest',
-                    benches: [bench('bench_fib_10', 135)],
-                },
-            },
-            {
                 it: 'raises an alert when exceeding threshold 2.0',
                 config: defaultCfg,
                 data: {
@@ -336,7 +245,7 @@ describe('writeBenchmark()', function() {
                     benches: [bench('bench_fib_10', 210), bench('bench_fib_20', 25000)], // Exceeds 2.0 threshold
                 },
                 error: [
-                    '# :warning: **Performance Alert** :warning:',
+                    '# **Performance Alert**',
                     '',
                     "Possible performance regression was detected for benchmark **'Test benchmark'**.",
                     'Benchmark result of this commit is worse than the previous benchmark result exceeding threshold `2`.',
@@ -375,7 +284,7 @@ describe('writeBenchmark()', function() {
                     benches: [bench('benchFib10', 20, '+-20', 'ops/sec')], // ops/sec so bigger is better
                 },
                 error: [
-                    '# :warning: **Performance Alert** :warning:',
+                    '# **Performance Alert**',
                     '',
                     "Possible performance regression was detected for benchmark **'Test benchmark'**.",
                     'Benchmark result of this commit is worse than the previous benchmark result exceeding threshold `2`.',
@@ -413,7 +322,7 @@ describe('writeBenchmark()', function() {
                     benches: [bench('bench_fib_10', 210)], // Exceeds 2.0 threshold
                 },
                 error: [
-                    '# :warning: **Performance Alert** :warning:',
+                    '# **Performance Alert**',
                     '',
                     'Possible performance regression was detected for benchmark.',
                     'Benchmark result of this commit is worse than the previous benchmark result exceeding threshold `2`.',
@@ -451,7 +360,7 @@ describe('writeBenchmark()', function() {
                     benches: [bench('bench_fib_10', 210)], // Exceeds 2.0 threshold
                 },
                 error: [
-                    '# :warning: **Performance Alert** :warning:',
+                    '# **Performance Alert**',
                     '',
                     "Possible performance regression was detected for benchmark **'Test benchmark'**.",
                     'Benchmark result of this commit is worse than the previous benchmark result exceeding threshold `2`.',
@@ -594,47 +503,6 @@ describe('writeBenchmark()', function() {
                 error: ['Repository information is not available in payload: {', '  "repository": null', '}'],
             },
             {
-                it: 'truncates data items if it exceeds max-items-in-chart',
-                config: { ...defaultCfg, maxItemsInChart: 1 },
-                data: {
-                    lastUpdate,
-                    repoUrl,
-                    entries: {
-                        'Test benchmark': [
-                            {
-                                commit: commit('prev commit id'),
-                                date: lastUpdate - 1000,
-                                tool: 'go',
-                                benches: [bench('bench_fib_10', 100), bench('bench_fib_20', 10000)],
-                            },
-                        ],
-                    },
-                },
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'go',
-                    benches: [bench('bench_fib_10', 210), bench('bench_fib_20', 25000)], // Exceeds 2.0 threshold
-                },
-                // Though first item is truncated due to maxItemsInChart, alert still can be raised since previous data
-                // is obtained before truncating an array of data items.
-                error: [
-                    '# :warning: **Performance Alert** :warning:',
-                    '',
-                    "Possible performance regression was detected for benchmark **'Test benchmark'**.",
-                    'Benchmark result of this commit is worse than the previous benchmark result exceeding threshold `2`.',
-                    '',
-                    '| Benchmark suite | Current: current commit id | Previous: prev commit id | Ratio |',
-                    '|-|-|-|-|',
-                    '| `bench_fib_10` | `210` ns/iter (`± 20`) | `100` ns/iter (`± 20`) | `2.10` |',
-                    '| `bench_fib_20` | `25000` ns/iter (`± 20`) | `10000` ns/iter (`± 20`) | `2.50` |',
-                    '',
-                    'This comment was automatically generated by [workflow](https://github.com/user/repo/actions?query=workflow%3AWorkflow%20name) using [github-action-benchmark](https://github.com/marketplace/actions/continuous-benchmark).',
-                    '',
-                    'CC: @user',
-                ],
-            },
-            {
                 it: 'changes title when threshold is zero which means comment always happens',
                 config: { ...defaultCfg, alertThreshold: 0, failThreshold: 0 },
                 data: {
@@ -698,7 +566,7 @@ describe('writeBenchmark()', function() {
                 error: [
                     '1 of 1 alerts exceeded the failure threshold `3` specified by fail-threshold input:',
                     '',
-                    '# :warning: **Performance Alert** :warning:',
+                    '# **Performance Alert**',
                     '',
                     "Possible performance regression was detected for benchmark **'Test benchmark'**.",
                     'Benchmark result of this commit is worse than the previous benchmark result exceeding threshold `2`.',
@@ -772,15 +640,9 @@ describe('writeBenchmark()', function() {
                     for (const name of Object.keys(t.data.entries)) {
                         const entries = t.data.entries[name];
                         if (name === t.config.name) {
-                            if (t.config.maxItemsInChart === null || len < t.config.maxItemsInChart) {
-                                eq(len, entries.length + 1, name);
-                                // Check benchmark data except for the last appended one are not modified
-                                eq(json.entries[name].slice(0, -1), entries, name);
-                            } else {
-                                // When data items was truncated due to max-items-in-chart
-                                eq(len, entries.length, name); // Number of items did not change because first item was shifted
-                                eq(json.entries[name].slice(0, -1), entries.slice(1), name);
-                            }
+                            eq(len, entries.length + 1, name);
+                            // Check benchmark data except for the last appended one are not modified
+                            eq(json.entries[name].slice(0, -1), entries, name);
                         } else {
                             eq(json.entries[name], entries, name);
                         }
@@ -835,399 +697,6 @@ describe('writeBenchmark()', function() {
                     const actionLink = a.last();
                     eq(actionLink.text(), 'github-action-benchmark');
                     eq(actionLink.attr('href'), 'https://github.com/marketplace/actions/continuous-benchmark');
-                }
-            });
-        }
-    });
-
-    // Tests for updating GitHub Pages branch
-    context('with gh-pages branch', function() {
-        beforeEach(async function() {
-            (global as any).window = {}; // Fake window object on browser
-        });
-        afterEach(async function() {
-            gitSpy.clear();
-            delete (global as any).window;
-            for (const p of [
-                path.join('data-dir', 'data.js'),
-                path.join('data-dir', 'index.html'),
-                'new-data-dir',
-                path.join('with-index-html', 'data.js'),
-            ]) {
-                // Ignore exception
-                await new Promise(resolve => rimraf(p, resolve));
-            }
-        });
-
-        async function isFile(p: string) {
-            try {
-                const s = await fs.stat(p);
-                return s.isFile();
-            } catch (_) {
-                return false;
-            }
-        }
-
-        async function isDir(p: string) {
-            try {
-                const s = await fs.stat(p);
-                return s.isDirectory();
-            } catch (_) {
-                return false;
-            }
-        }
-
-        async function loadDataJs(dataDir: string) {
-            const dataJs = path.join(dataDir, 'data.js');
-            if (!(await isDir(dataDir)) || !(await isFile(dataJs))) {
-                return null;
-            }
-            const dataSource = await fs.readFile(dataJs, 'utf8');
-            eval(dataSource);
-            return (global as any).window.BENCHMARK_DATA as DataJson;
-        }
-
-        const defaultCfg: Config = {
-            name: 'Test benchmark',
-            tool: 'cargo',
-            outputFilePath: 'dummy', // Should not affect
-            ghPagesBranch: 'gh-pages',
-            benchmarkDataDirPath: 'data-dir', // Should not affect
-            githubToken: 'dummy token',
-            autoPush: true,
-            skipFetchGhPages: false, // Should not affect
-            commentAlways: false,
-            saveDataFile: true,
-            commentOnAlert: false,
-            alertThreshold: 2.0,
-            failOnAlert: true,
-            alertCommentCcUsers: [],
-            externalDataJsonPath: undefined,
-            maxItemsInChart: null,
-            failThreshold: 2.0,
-        };
-
-        function gitHistory(
-            cfg: {
-                dir?: string;
-                addIndexHtml?: boolean;
-                autoPush?: boolean;
-                token?: string | undefined;
-                fetch?: boolean;
-                skipFetch?: boolean;
-            } = {},
-        ): [GitFunc, unknown[]][] {
-            const dir = cfg.dir ?? 'data-dir';
-            const token = 'token' in cfg ? cfg.token : 'dummy token';
-            const fetch = cfg.fetch ?? true;
-            const addIndexHtml = cfg.addIndexHtml ?? true;
-            const autoPush = cfg.autoPush ?? true;
-            const skipFetch = cfg.skipFetch ?? false;
-            const hist: Array<[GitFunc, unknown[]] | undefined> = [
-                skipFetch ? undefined : ['cmd', ['fetch', 'origin', 'gh-pages:gh-pages']],
-                ['cmd', ['switch', 'gh-pages']],
-                fetch ? ['pull', [token, 'gh-pages']] : undefined,
-                ['cmd', ['add', path.join(dir, 'data.js')]],
-                addIndexHtml ? ['cmd', ['add', path.join(dir, 'index.html')]] : undefined,
-                ['cmd', ['commit', '-m', 'add Test benchmark (cargo) benchmark result for current commit id']],
-                autoPush ? ['push', [token, 'gh-pages']] : undefined,
-                ['cmd', ['checkout', '-']], // Return from gh-pages
-            ];
-            return hist.filter((x: [GitFunc, unknown[]] | undefined): x is [GitFunc, unknown[]] => x !== undefined);
-        }
-
-        const normalCases: Array<{
-            it: string;
-            config: Config;
-            added: Benchmark;
-            gitHistory: [GitFunc, unknown[]][];
-            privateRepo?: boolean;
-            error?: string[];
-        }> = [
-            {
-                it: 'appends new data',
-                config: defaultCfg,
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'cargo',
-                    benches: [bench('bench_fib_10', 135)],
-                },
-                gitHistory: gitHistory(),
-            },
-            {
-                it: 'creates new data file',
-                config: { ...defaultCfg, benchmarkDataDirPath: 'new-data-dir' },
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'cargo',
-                    benches: [bench('bench_fib_10', 135)],
-                },
-                gitHistory: gitHistory({ dir: 'new-data-dir' }),
-            },
-            {
-                it: 'creates new suite in data',
-                config: defaultCfg,
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'cargo',
-                    benches: [bench('other_bench_foo', 100)],
-                },
-                gitHistory: gitHistory(),
-            },
-            {
-                it: 'does not create index.html if it already exists',
-                config: { ...defaultCfg, benchmarkDataDirPath: 'with-index-html' },
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'cargo',
-                    benches: [bench('bench_fib_10', 100)],
-                },
-                gitHistory: gitHistory({ dir: 'with-index-html', addIndexHtml: false }),
-            },
-            {
-                it: 'does not push to remote when auto-push is off',
-                config: { ...defaultCfg, autoPush: false },
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'cargo',
-                    benches: [bench('bench_fib_10', 135)],
-                },
-                gitHistory: gitHistory({ autoPush: false }),
-            },
-            {
-                it: 'does not push to remote when auto-push is off without token',
-                config: { ...defaultCfg, autoPush: false, githubToken: undefined },
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'cargo',
-                    benches: [bench('bench_fib_10', 135)],
-                },
-                gitHistory: gitHistory({ autoPush: false, token: undefined }),
-            },
-            {
-                it: 'does not fetch remote when github-token is not set for private repo',
-                config: { ...defaultCfg, autoPush: false, githubToken: undefined },
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'cargo',
-                    benches: [bench('bench_fib_10', 135)],
-                },
-                gitHistory: gitHistory({ autoPush: false, token: undefined, fetch: false }),
-                privateRepo: true,
-            },
-            {
-                it: 'does not fetch remote when skip-fetch-gh-pages is enabled',
-                config: { ...defaultCfg, skipFetchGhPages: true },
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'cargo',
-                    benches: [bench('bench_fib_10', 135)],
-                },
-                gitHistory: gitHistory({ fetch: false, skipFetch: true }),
-            },
-            {
-                it: 'fails when exceeding the threshold',
-                config: defaultCfg,
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'cargo',
-                    benches: [bench('bench_fib_10', 210)], // Exceeds 2.0 threshold
-                },
-                gitHistory: gitHistory(),
-                error: [
-                    '# :warning: **Performance Alert** :warning:',
-                    '',
-                    "Possible performance regression was detected for benchmark **'Test benchmark'**.",
-                    'Benchmark result of this commit is worse than the previous benchmark result exceeding threshold `2`.',
-                    '',
-                    '| Benchmark suite | Current: current commit id | Previous: prev commit id | Ratio |',
-                    '|-|-|-|-|',
-                    '| `bench_fib_10` | `210` ns/iter (`± 20`) | `100` ns/iter (`± 20`) | `2.10` |',
-                    '',
-                    'This comment was automatically generated by [workflow](https://github.com/user/repo/actions?query=workflow%3AWorkflow%20name) using [github-action-benchmark](https://github.com/marketplace/actions/continuous-benchmark).',
-                ],
-            },
-            {
-                it:
-                    'sends commit message but does not raise an error when exceeding alert threshold but not exceeding failure threshold',
-                config: {
-                    ...defaultCfg,
-                    commentOnAlert: true,
-                    githubToken: 'dummy token',
-                    alertThreshold: 2,
-                    failThreshold: 3,
-                },
-                added: {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'cargo',
-                    benches: [bench('bench_fib_10', 210)], // Exceeds 2.0 threshold but not exceed 3.0 threshold
-                },
-                gitHistory: gitHistory(),
-                error: undefined,
-            },
-        ];
-
-        for (const t of normalCases) {
-            it(t.it, async function() {
-                if (t.privateRepo) {
-                    gitHubContext.payload.repository = gitHubContext.payload.repository
-                        ? { ...gitHubContext.payload.repository, private: true }
-                        : null;
-                }
-
-                const originalDataJs = path.join(t.config.benchmarkDataDirPath, 'original_data.js');
-                const dataJs = path.join(t.config.benchmarkDataDirPath, 'data.js');
-                const indexHtml = path.join(t.config.benchmarkDataDirPath, 'index.html');
-
-                if (await isFile(originalDataJs)) {
-                    await fs.copyFile(originalDataJs, dataJs);
-                }
-
-                let indexHtmlBefore = null;
-                try {
-                    indexHtmlBefore = await fs.readFile(indexHtml);
-                } catch (_) {
-                    // Ignore
-                }
-
-                let caughtError: Error | null = null;
-                const beforeData = await loadDataJs(t.config.benchmarkDataDirPath);
-                const beforeDate = Date.now();
-                try {
-                    await writeBenchmark(t.added, t.config);
-                } catch (err) {
-                    if (t.error === undefined) {
-                        throw err;
-                    }
-                    caughtError = err;
-                }
-
-                if (t.error) {
-                    ok(caughtError);
-                    const expected = t.error.join('\n');
-                    eq(expected, caughtError.message);
-                    return;
-                }
-
-                // Post condition checks for success cases
-
-                const afterDate = Date.now();
-
-                eq(t.gitHistory, gitSpy.history);
-
-                ok(await isDir(t.config.benchmarkDataDirPath));
-                ok(await isFile(path.join(t.config.benchmarkDataDirPath, 'index.html')));
-                ok(await isFile(dataJs));
-
-                const data = await loadDataJs(t.config.benchmarkDataDirPath);
-                ok(data);
-
-                eq(typeof data.lastUpdate, 'number');
-                ok(
-                    beforeDate <= data.lastUpdate && data.lastUpdate <= afterDate,
-                    `Should be ${beforeDate} <= ${data.lastUpdate} <= ${afterDate}`,
-                );
-                ok(data.entries[t.config.name]);
-                const len = data.entries[t.config.name].length;
-                ok(len > 0);
-                eq(data.entries[t.config.name][len - 1], t.added); // Check last item is the newest
-
-                if (beforeData !== null) {
-                    eq(beforeData.repoUrl, data.repoUrl);
-                    for (const name of Object.keys(beforeData.entries)) {
-                        if (name === t.config.name) {
-                            eq(beforeData.entries[name], data.entries[name].slice(0, -1)); // New data was appended
-                        } else {
-                            eq(beforeData.entries[name], data.entries[name]);
-                        }
-                    }
-                }
-
-                if (indexHtmlBefore !== null) {
-                    const indexHtmlAfter = await fs.readFile(indexHtml);
-                    eq(indexHtmlBefore, indexHtmlAfter); // If index.html is already existing, do not touch it
-                }
-            });
-        }
-
-        const maxRetries = 10;
-        const retryCases: Array<{
-            it: string;
-            error?: RegExp;
-            pushErrorMessage: string;
-            pushErrorCount: number;
-        }> = [
-            ...[1, 2].map(retries => ({
-                it: `updates data successfully after ${retries} retries`,
-                pushErrorMessage: '... [remote rejected] ...',
-                pushErrorCount: retries,
-            })),
-            {
-                it: `gives up updating data after ${maxRetries} retries with an error`,
-                pushErrorMessage: '... [remote rejected] ...',
-                pushErrorCount: maxRetries,
-                error: /Auto-push failed 3 times since the remote branch gh-pages rejected pushing all the time/,
-            },
-            {
-                it: `gives up updating data after ${maxRetries} retries with an error containing "[rejected]" in message`,
-                pushErrorMessage: '... [rejected] ...',
-                pushErrorCount: maxRetries,
-                error: /Auto-push failed 3 times since the remote branch gh-pages rejected pushing all the time/,
-            },
-            {
-                it: 'handles an unexpected error without retry',
-                pushErrorMessage: 'Some fatal error',
-                pushErrorCount: 1,
-                error: /Some fatal error/,
-            },
-        ];
-
-        for (const t of retryCases) {
-            it(t.it, async function() {
-                gitSpy.pushFailure = t.pushErrorMessage;
-                gitSpy.pushFailureCount = t.pushErrorCount;
-                const config = { ...defaultCfg, benchmarkDataDirPath: 'with-index-html' };
-                const added: Benchmark = {
-                    commit: commit('current commit id'),
-                    date: lastUpdate,
-                    tool: 'cargo',
-                    benches: [bench('bench_fib_10', 110)],
-                };
-
-                const originalDataJs = path.join(config.benchmarkDataDirPath, 'original_data.js');
-                const dataJs = path.join(config.benchmarkDataDirPath, 'data.js');
-                await fs.copyFile(originalDataJs, dataJs);
-
-                const history = gitHistory({ dir: 'with-index-html', addIndexHtml: false });
-                if (t.pushErrorCount > 0) {
-                    // First 2 commands are fetch and switch. They are not repeated on retry
-                    const retryHistory = history.slice(2, -1);
-                    retryHistory.push(['cmd', ['reset', '--hard', 'HEAD~1']]);
-
-                    const retries = Math.min(t.pushErrorCount, maxRetries);
-                    for (let i = 0; i < retries; i++) {
-                        history.splice(2, 0, ...retryHistory);
-                    }
-                }
-
-                try {
-                    await writeBenchmark(added, config);
-                    eq(history, gitSpy.history);
-                } catch (err) {
-                    if (t.error === undefined) {
-                        throw err;
-                    }
-                    ok(t.error.test(err.message), `'${err.message}' did not match to ${t.error}`);
                 }
             });
         }

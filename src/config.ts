@@ -7,29 +7,21 @@ export type ToolType = 'cargo' | 'go' | 'benchmarkjs' | 'pytest' | 'googlecpp' |
 export interface Config {
     name: string;
     tool: ToolType;
-    outputFilePath: string;
-    ghPagesBranch: string;
-    benchmarkDataDirPath: string;
-    githubToken: string | undefined;
-    autoPush: boolean;
-    skipFetchGhPages: boolean;
+    prBenchmarkFilePath: string;
+    baseBenchmarkFilePath: string;
+    githubToken?: string;
     commentAlways: boolean;
-    saveDataFile: boolean;
     commentOnAlert: boolean;
     alertThreshold: number;
     failOnAlert: boolean;
     failThreshold: number;
     alertCommentCcUsers: string[];
-    externalDataJsonPath: string | undefined;
-    baseFilePath?: string;
-    maxItemsInChart: number | null;
 }
 
-export const VALID_TOOLS: ToolType[] = ['cargo', 'go', 'benchmarkjs', 'pytest', 'googlecpp', 'catch2'];
-const RE_UINT = /^\d+$/;
+export const VALID_TOOLS: Set<string> = new Set(['cargo', 'go', 'benchmarkjs', 'pytest', 'googlecpp', 'catch2']);
 
 function validateToolType(tool: string): asserts tool is ToolType {
-    if ((VALID_TOOLS as string[]).includes(tool)) {
+    if (VALID_TOOLS.has(tool)) {
         return;
     }
     throw new Error(`Invalid value '${tool}' for 'tool' input. It must be one of ${VALID_TOOLS}`);
@@ -68,21 +60,6 @@ async function validateOutputFilePath(filePath: string): Promise<string> {
         return await resolveFilePath(filePath);
     } catch (err) {
         throw new Error(`Invalid value for 'output-file-path' input: ${err}`);
-    }
-}
-
-function validateGhPagesBranch(branch: string) {
-    if (branch) {
-        return;
-    }
-    throw new Error(`Branch value must not be empty for 'gh-pages-branch' input`);
-}
-
-function validateBenchmarkDataDirPath(dirPath: string): string {
-    try {
-        return resolvePath(dirPath);
-    } catch (e) {
-        throw new Error(`Invalid value for 'benchmark-data-dir-path': ${e}`);
     }
 }
 
@@ -143,59 +120,12 @@ function validateAlertCommentCcUsers(users: string[]) {
     }
 }
 
-async function isDir(path: string) {
-    try {
-        const s = await fs.stat(path);
-        return s.isDirectory();
-    } catch (_) {
-        return false;
-    }
-}
-
-async function validateExternalDataJsonPath(path: string | undefined, autoPush: boolean): Promise<string | undefined> {
-    if (!path) {
-        return Promise.resolve(undefined);
-    }
-    if (autoPush) {
-        throw new Error(
-            'auto-push must be false when external-data-json-path is set since this action reads/writes the given JSON file and never pushes to remote',
-        );
-    }
-    try {
-        const p = resolvePath(path);
-        if (await isDir(p)) {
-            throw new Error(`Specified path '${p}' must be file but it is actually directory`);
-        }
-        return p;
-    } catch (err) {
-        throw new Error(`Invalid value for 'external-data-json-path' input: ${err}`);
-    }
-}
-
-function getUintInput(name: string): number | null {
-    const input = core.getInput(name);
-    if (!input) {
-        return null;
-    }
-    if (!RE_UINT.test(input)) {
-        throw new Error(`'${name}' input must be unsigned integer but got '${input}'`);
-    }
-    const i = parseInt(input, 10);
-    if (isNaN(i)) {
-        throw new Error(`Unsigned integer value '${input}' in '${name}' input was parsed as NaN`);
-    }
-    return i;
-}
-
-function validateMaxItemsInChart(max: number | null) {
-    if (max !== null && max <= 0) {
-        throw new Error(`'max-items-in-chart' input value must be one or more but got ${max}`);
-    }
-}
-
 function validateAlertThreshold(alertThreshold: number | null, failThreshold: number | null): asserts alertThreshold {
     if (alertThreshold === null) {
         throw new Error("'alert-threshold' input must not be empty");
+    }
+    if (failThreshold === null) {
+        throw new Error("'fail-threshold' input must not be empty");
     }
     if (failThreshold && alertThreshold > failThreshold) {
         throw new Error(
@@ -206,64 +136,35 @@ function validateAlertThreshold(alertThreshold: number | null, failThreshold: nu
 
 export async function configFromJobInput(): Promise<Config> {
     const tool: string = core.getInput('tool');
-    let outputFilePath: string = core.getInput('output-file-path');
-    const ghPagesBranch: string = core.getInput('gh-pages-branch');
-    let benchmarkDataDirPath: string = core.getInput('benchmark-data-dir-path');
     const name: string = core.getInput('name');
+    const prBenchmarkFilePath: string = await validateOutputFilePath(core.getInput('pr-benchmark-file-path'));
+    const baseBenchmarkFilePath: string = await validateOutputFilePath(core.getInput('base-benchmark-file-path'));
     const githubToken: string | undefined = core.getInput('github-token') || undefined;
-    const autoPush = getBoolInput('auto-push');
-    const skipFetchGhPages = getBoolInput('skip-fetch-gh-pages');
     const commentAlways = getBoolInput('comment-always');
-    const saveDataFile = getBoolInput('save-data-file');
     const commentOnAlert = getBoolInput('comment-on-alert');
     const alertThreshold = getPercentageInput('alert-threshold');
+    const failThreshold = getPercentageInput('fail-threshold') || alertThreshold;
     const failOnAlert = getBoolInput('fail-on-alert');
     const alertCommentCcUsers = getCommaSeparatedInput('alert-comment-cc-users');
-    let externalDataJsonPath: undefined | string = core.getInput('external-data-json-path');
-    let baseFilePath: string | undefined = core.getInput('base-file-path');
-    const maxItemsInChart = getUintInput('max-items-in-chart');
-    let failThreshold = getPercentageInput('fail-threshold');
 
     validateToolType(tool);
-    outputFilePath = await validateOutputFilePath(outputFilePath);
-    validateGhPagesBranch(ghPagesBranch);
-    benchmarkDataDirPath = validateBenchmarkDataDirPath(benchmarkDataDirPath);
     validateName(name);
-    if (autoPush) {
-        validateGitHubToken('auto-push', githubToken, 'to push GitHub pages branch to remote');
-    }
-    if (commentAlways) {
-        validateGitHubToken('comment-always', githubToken, 'to send commit comment');
-    }
-    if (commentOnAlert) {
-        validateGitHubToken('comment-on-alert', githubToken, 'to send commit comment on alert');
-    }
+    commentAlways && validateGitHubToken('comment-always', githubToken, 'to send commit comment');
+    commentOnAlert && validateGitHubToken('comment-on-alert', githubToken, 'to send commit comment');
     validateAlertThreshold(alertThreshold, failThreshold);
     validateAlertCommentCcUsers(alertCommentCcUsers);
-    externalDataJsonPath = await validateExternalDataJsonPath(externalDataJsonPath, autoPush);
-    validateMaxItemsInChart(maxItemsInChart);
-    if (failThreshold === null) {
-        failThreshold = alertThreshold;
-    }
 
     return {
         name,
         tool,
-        outputFilePath,
-        ghPagesBranch,
-        benchmarkDataDirPath,
+        prBenchmarkFilePath,
+        baseBenchmarkFilePath,
         githubToken,
-        autoPush,
-        skipFetchGhPages,
         commentAlways,
-        saveDataFile,
         commentOnAlert,
         alertThreshold,
+        failThreshold: failThreshold!,
         failOnAlert,
         alertCommentCcUsers,
-        externalDataJsonPath,
-        baseFilePath,
-        maxItemsInChart,
-        failThreshold,
     };
 }

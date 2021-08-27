@@ -11,3 +11,5 @@
 /scripts/*.js.map
 /.nyc_output
 /coverage
+lib
+src/.DS_Store

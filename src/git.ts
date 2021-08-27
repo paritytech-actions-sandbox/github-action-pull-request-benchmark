@@ -105,7 +105,6 @@ export async function pull(token: string | undefined, branch: string, ...options
     return cmd(...args);
 }
 
-
 export function getLatestPRCommit(): Commit {
     /* eslint-disable @typescript-eslint/camelcase */
     if (github.context.payload.head_commit) {

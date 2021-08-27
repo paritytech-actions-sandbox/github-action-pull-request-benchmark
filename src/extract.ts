@@ -1,7 +1,6 @@
 import { promises as fs } from 'fs';
-import * as github from '@actions/github';
-import { Config, ToolType } from './config';
-import { Commit, GitHubUser } from './git';
+import { ToolType } from './config';
+import { Commit } from './git';
 
 export interface BenchmarkResult {
     name: string;
