@@ -1,7 +1,8 @@
 import { strict as A } from 'assert';
 import * as path from 'path';
 import * as os from 'os';
-import mock = require('mock-require');
+import * as core from '@actions/core';
+import { createSandbox } from 'sinon';
 
 type Inputs = { [name: string]: string };
 
@@ -13,40 +14,35 @@ function mockInputs(newInputs: Inputs) {
     Object.assign(inputs, newInputs);
 }
 
-mock('@actions/core', {
-    getInput: (name: string) => inputs[name],
-});
+const getMockedInput = (name: string): string => inputs[name];
 
 // This line must be called after mocking
-const { configFromJobInput, VALID_TOOLS } = require('../src/config');
+import { configFromJobInput, VALID_TOOLS } from '../src/config';
 
 describe('configFromJobInput()', function() {
-    const cwd = process.cwd();
+    const rootDir = process.cwd();
+    const sandbox = createSandbox();
 
     before(function() {
-        process.chdir(path.join(__dirname, 'data', 'config'));
+        sandbox.stub(core, 'getInput').callsFake(getMockedInput);
+        process.chdir(path.join(rootDir, 'test', 'data', 'config'));
     });
 
     after(function() {
-        mock.stop('@actions/core');
-        process.chdir(cwd);
+        sandbox.restore();
+        process.chdir(rootDir);
     });
 
     const defaultInputs = {
         name: 'Benchmark',
         tool: 'cargo',
-        'output-file-path': 'out.txt',
-        'gh-pages-branch': 'gh-pages',
-        'benchmark-data-dir-path': '.',
+        'pr-benchmark-file-path': 'out.txt',
+        'base-benchmark-file-path': 'out.txt',
         'github-token': '',
-        'auto-push': 'false',
-        'skip-fetch-gh-pages': 'false',
         'comment-on-alert': 'false',
         'alert-threshold': '200%',
         'fail-on-alert': 'false',
         'alert-comment-cc-users': '',
-        'external-data-json-path': '',
-        'max-items-in-chart': '',
     };
 
     const validation_tests = [
@@ -61,31 +57,14 @@ describe('configFromJobInput()', function() {
             expected: /^Error: Invalid value 'foo' for 'tool' input/,
         },
         {
-            what: 'output file does not exist',
-            inputs: { ...defaultInputs, 'output-file-path': 'foo.txt' },
-            expected: /^Error: Invalid value for 'output-file-path'/,
+            what: 'benchmark file does not exist',
+            inputs: { ...defaultInputs, 'pr-benchmark-file-path': 'foo.txt' },
+            expected: /^Error: Invalid value for 'pr-benchmark-file-path'/,
         },
         {
-            what: 'output file is actually directory',
-            inputs: { ...defaultInputs, 'output-file-path': '.' },
+            what: 'benchmark file is actually directory',
+            inputs: { ...defaultInputs, 'pr-benchmark-file-path': '.' },
             expected: /Specified path '.*' is not a file/,
-        },
-        {
-            what: 'wrong GitHub pages branch name',
-            inputs: { ...defaultInputs, 'gh-pages-branch': '' },
-            expected: /^Error: Branch value must not be empty/,
-        },
-        // Cannot check 'benchmark-data-dir-path' invalidation because it throws an error only when
-        // current working directory is not obtainable.
-        {
-            what: 'auto-push is set but github-token is not set',
-            inputs: { ...defaultInputs, 'auto-push': 'true', 'github-token': '' },
-            expected: /'auto-push' is enabled but 'github-token' is not set/,
-        },
-        {
-            what: 'auto-push is set to other than boolean',
-            inputs: { ...defaultInputs, 'auto-push': 'hello', 'github-token': 'dummy' },
-            expected: /'auto-push' input must be boolean value 'true' or 'false' but got 'hello'/,
         },
         {
             what: 'alert-threshold does not have percentage value',
@@ -106,37 +85,6 @@ describe('configFromJobInput()', function() {
             what: 'user names in alert-comment-cc-users is not starting with @',
             inputs: { ...defaultInputs, 'alert-comment-cc-users': '@foo,bar' },
             expected: /User name in 'alert-comment-cc-users' input must start with '@' but got 'bar'/,
-        },
-        {
-            what: 'external data file is actually directory',
-            inputs: { ...defaultInputs, 'external-data-json-path': '.' },
-            expected: /must be file but it is actually directory/,
-        },
-        {
-            what: 'both external-data-json-path and auto-push are set at the same time',
-            inputs: {
-                ...defaultInputs,
-                'external-data-json-path': 'external.json',
-                'auto-push': 'true',
-                'github-token': 'dummy',
-            },
-            expected: /auto-push must be false when external-data-json-path is set/,
-        },
-        {
-            what: 'invalid integer value for max-items-in-chart',
-            inputs: {
-                ...defaultInputs,
-                'max-items-in-chart': '3.14',
-            },
-            expected: /'max-items-in-chart' input must be unsigned integer but got '3.14'/,
-        },
-        {
-            what: 'max-items-in-chart must not be zero',
-            inputs: {
-                ...defaultInputs,
-                'max-items-in-chart': '0',
-            },
-            expected: /'max-items-in-chart' input value must be one or more/,
         },
         {
             what: 'alert-threshold must not be empty',
@@ -177,44 +125,32 @@ describe('configFromJobInput()', function() {
     interface ExpectedResult {
         name: string;
         tool: string;
-        ghPagesBranch: string;
-        githubToken: string | undefined;
-        autoPush: boolean;
-        skipFetchGhPages: boolean;
+        githubToken?: string;
         commentOnAlert: boolean;
         alertThreshold: number;
         failOnAlert: boolean;
         alertCommentCcUsers: string[];
-        hasExternalDataJsonPath: boolean;
-        maxItemsInChart: null | number;
         failThreshold: number | null;
     }
 
     const defaultExpected: ExpectedResult = {
         name: 'Benchmark',
         tool: 'cargo',
-        ghPagesBranch: 'gh-pages',
-        autoPush: false,
-        skipFetchGhPages: false,
         githubToken: undefined,
         commentOnAlert: false,
         alertThreshold: 2,
         failOnAlert: false,
         alertCommentCcUsers: [],
-        hasExternalDataJsonPath: false,
-        maxItemsInChart: null,
         failThreshold: null,
     };
 
     const returnedConfigTests = [
-        ...VALID_TOOLS.map((tool: string) => ({
+        ...Array.from(VALID_TOOLS).map((tool: string) => ({
             what: 'valid tool ' + tool,
             inputs: { ...defaultInputs, tool },
             expected: { ...defaultExpected, tool },
         })),
         ...([
-            ['auto-push', 'autoPush'],
-            ['skip-fetch-gh-pages', 'skipFetchGhPages'],
             ['comment-on-alert', 'commentOnAlert'],
             ['fail-on-alert', 'failOnAlert'],
         ] as const)
@@ -230,11 +166,6 @@ describe('configFromJobInput()', function() {
             what: 'with specified name',
             inputs: { ...defaultInputs, name: 'My Name is...' },
             expected: { ...defaultExpected, name: 'My Name is...' },
-        },
-        {
-            what: 'with specified GitHub Pages branch',
-            inputs: { ...defaultInputs, 'gh-pages-branch': 'master' },
-            expected: { ...defaultExpected, ghPagesBranch: 'master' },
         },
         ...[
             ['150%', 1.5],
@@ -255,16 +186,6 @@ describe('configFromJobInput()', function() {
             expected: { ...defaultExpected, alertCommentCcUsers: e },
         })),
         {
-            what: 'external JSON file',
-            inputs: { ...defaultInputs, 'external-data-json-path': 'external.json' },
-            expected: { ...defaultExpected, hasExternalDataJsonPath: true },
-        },
-        {
-            what: 'max items in chart',
-            inputs: { ...defaultInputs, 'max-items-in-chart': '50' },
-            expected: { ...defaultExpected, maxItemsInChart: 50 },
-        },
-        {
             what: 'different failure threshold from alert threshold',
             inputs: { ...defaultInputs, 'fail-threshold': '300%' },
             expected: { ...defaultExpected, failThreshold: 3.0 },
@@ -273,7 +194,6 @@ describe('configFromJobInput()', function() {
             what: 'boolean value parsing an empty input as false',
             inputs: {
                 ...defaultInputs,
-                'skip-fetch-gh-pages': '',
                 'comment-on-alert': '',
                 'fail-on-alert': '',
             },
@@ -291,27 +211,17 @@ describe('configFromJobInput()', function() {
             const actual = await configFromJobInput();
             A.equal(actual.name, test.expected.name);
             A.equal(actual.tool, test.expected.tool);
-            A.equal(actual.ghPagesBranch, test.expected.ghPagesBranch);
             A.equal(actual.githubToken, test.expected.githubToken);
-            A.equal(actual.skipFetchGhPages, test.expected.skipFetchGhPages);
             A.equal(actual.commentOnAlert, test.expected.commentOnAlert);
             A.equal(actual.failOnAlert, test.expected.failOnAlert);
             A.equal(actual.alertThreshold, test.expected.alertThreshold);
             A.deepEqual(actual.alertCommentCcUsers, test.expected.alertCommentCcUsers);
-            A.ok(path.isAbsolute(actual.outputFilePath), actual.outputFilePath);
-            A.ok(path.isAbsolute(actual.benchmarkDataDirPath), actual.benchmarkDataDirPath);
-            A.equal(actual.maxItemsInChart, test.expected.maxItemsInChart);
+            A.ok(path.isAbsolute(actual.prBenchmarkFilePath), actual.prBenchmarkFilePath);
+            A.ok(path.isAbsolute(actual.baseBenchmarkFilePath), actual.baseBenchmarkFilePath);
             if (test.expected.failThreshold === null) {
                 A.equal(actual.failThreshold, test.expected.alertThreshold);
             } else {
                 A.equal(actual.failThreshold, test.expected.failThreshold);
-            }
-
-            if (test.expected.hasExternalDataJsonPath) {
-                A.equal(typeof actual.externalDataJsonPath, 'string');
-                A.ok(path.isAbsolute(actual.externalDataJsonPath), actual.externalDataJsonPath);
-            } else {
-                A.equal(actual.externalDataJsonPath, undefined);
             }
         });
     }
@@ -326,24 +236,21 @@ describe('configFromJobInput()', function() {
         const config = await configFromJobInput();
         A.equal(config.name, 'Benchmark');
         A.equal(config.tool, 'cargo');
-        A.ok(path.isAbsolute(config.outputFilePath), config.outputFilePath);
-        A.ok(config.outputFilePath.endsWith('out.txt'), config.outputFilePath);
-        A.ok(path.isAbsolute(config.benchmarkDataDirPath), config.benchmarkDataDirPath);
-        A.ok(config.benchmarkDataDirPath.endsWith('output'), config.benchmarkDataDirPath);
+        A.ok(path.isAbsolute(config.prBenchmarkFilePath), config.prBenchmarkFilePath);
+        A.ok(path.isAbsolute(config.baseBenchmarkFilePath), config.baseBenchmarkFilePath);
     });
 
     it('does not change abusolute paths in config', async function() {
         const outFile = path.resolve('out.txt');
-        const dataDir = path.resolve('path/to/output');
         mockInputs({
             ...defaultInputs,
-            'output-file-path': outFile,
-            'benchmark-data-dir-path': dataDir,
+            'pr-benchmark-file-path': outFile,
+            'base-benchmark-file-path': outFile,
         });
 
         const config = await configFromJobInput();
-        A.equal(config.outputFilePath, outFile);
-        A.equal(config.benchmarkDataDirPath, dataDir);
+        A.equal(config.prBenchmarkFilePath, outFile);
+        A.equal(config.baseBenchmarkFilePath, outFile);
     });
 
     it('resolves home directory in output directory path', async function() {
@@ -356,18 +263,17 @@ describe('configFromJobInput()', function() {
 
         const cwd = path.join('~', absCwd.slice(home.length));
         const file = path.join(cwd, 'out.txt');
-        const dir = path.join(cwd, 'outdir');
 
         mockInputs({
             ...defaultInputs,
-            'output-file-path': file,
-            'benchmark-data-dir-path': dir,
+            'pr-benchmark-file-path': file,
+            'base-benchmark-file-path': file,
         });
 
         const config = await configFromJobInput();
-        A.ok(path.isAbsolute(config.outputFilePath), config.outputFilePath);
-        A.equal(config.outputFilePath, path.join(absCwd, 'out.txt'));
-        A.ok(path.isAbsolute(config.benchmarkDataDirPath), config.benchmarkDataDirPath);
-        A.equal(config.benchmarkDataDirPath, path.join(absCwd, 'outdir'));
+        A.ok(path.isAbsolute(config.prBenchmarkFilePath), config.prBenchmarkFilePath);
+        A.equal(config.prBenchmarkFilePath, path.join(absCwd, 'out.txt'));
+        A.ok(path.isAbsolute(config.baseBenchmarkFilePath), config.baseBenchmarkFilePath);
+        A.equal(config.baseBenchmarkFilePath, path.join(absCwd, 'out.txt'));
     });
 });

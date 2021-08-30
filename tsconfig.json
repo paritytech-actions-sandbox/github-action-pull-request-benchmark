@@ -27,10 +27,7 @@
     "src/git.ts",
     "src/alert.ts",
     "test/extract.ts",
-    // "test/config.ts",
-    // "test/git.ts",
-    // "test/write.ts",
-    // "test/default_index_html.ts",
-    // "scripts/ci_validate_modification.ts"
+    "test/config.ts",
+    "test/alert.ts",
   ]
 }
