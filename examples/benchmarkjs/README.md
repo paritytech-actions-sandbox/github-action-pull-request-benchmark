@@ -1,13 +1,6 @@
 JavaScript example for benchmarking with [benchmark.js][tool]
 =============================================================
 
-- [Workflow for this example](../../.github/workflows/benchmarkjs.yml)
-- [Action log of this example](https://github.com/rhysd/github-action-benchmark/actions?query=workflow%3A%22Benchmark.js+Example%22)
-- [Benchmark results on GitHub pages](https://rhysd.github.io/github-action-benchmark/dev/bench/)
-
-This directory shows how to use [`github-action-benchmark`](https://github.com/rhysd/github-action-benchmark)
-with [benchmark.js][tool].
-
 ## Run benchmarks
 
 Official documentation for usage of benchmark.js:
@@ -50,13 +43,11 @@ e.g.
 Store the benchmark results with step using the action. Please set `benchmarkjs` to `tool` input.
 
 ```yaml
-- name: Store benchmark result
-  uses: rhysd/github-action-benchmark@v1
+- name: Compare benchmark result
+  uses: larabr/github-action-benchmark@v1
   with:
     tool: 'benchmarkjs'
-    output-file-path: output.txt
+    pr-benchmark-file-path: output.txt
 ```
-
-Please read ['How to use' section](https://github.com/rhysd/github-action-benchmark#how-to-use) for common usage.
 
 [tool]: https://benchmarkjs.com/

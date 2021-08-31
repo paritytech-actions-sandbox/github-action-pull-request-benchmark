@@ -31,11 +31,11 @@ inputs:
     required: false
     default: false
   alert-threshold:
-    description: 'Threshold which determines when to trigger a comment alert. Percentage values such as "150%" are supported. For example, 150% means that an alert happens when the PR benchmark result is 1.5x worse than the base branch'
+    description: 'Threshold which determines when to trigger a comment alert. Percentage values such as "150%" are supported. For example, 150% means that an alert happens when the PR benchmark result is 1.5x slower than the base branch'
     required: false
-    default: '50%'
+    default: '200%'
   fail-on-alert:
-    description: 'Workflow fails when alert comment happens'
+    description: 'Workflow fails when `fail-treshold` is exceeded'
     required: false
     default: true
   fail-threshold:

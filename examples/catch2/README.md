@@ -1,14 +1,6 @@
 C++ example for benchmarking with [Catch2 Framework][tool]
 ====================================================================
 
-- [Workflow for this example](../../.github/workflows/catch2.yml)
-- [Action log of this example](https://github.com/rhysd/github-action-benchmark/actions?query=workflow%3A%22Catch2+C%2B%2B+Example%22)
-- [Benchmark results on GitHub pages](https://rhysd.github.io/github-action-benchmark/dev/bench/)
-
-This directory shows how to use [`github-action-benchmark`][action] with [Catch2 Framework][tool].
-
-
-
 ## Run benchmarks
 
 Official documentation for usage of Catch2 Framework can be found in its repository:
@@ -37,18 +29,14 @@ Ensure to use `console` reporter for this. `xml` reporter may be supported in th
 
 ## Process benchmark results
 
-Store the benchmark results with step using the action. Please set `catch2` to `tool` input.
-
 ```yaml
-- name: Store benchmark result
-  uses: rhysd/github-action-benchmark@v1
+- name: Compare benchmark result
+  uses: larabr/github-action-benchmark@v1
   with:
     tool: 'catch2'
-    output-file-path: benchmark_result.json
+    pr-benchmark-file-path: benchmark_result.json
+    ...
 ```
-
-Please read ['How to use' section](https://github.com/rhysd/github-action-benchmark#how-to-use) for common usage.
-
 
 
 ## Run this example
@@ -65,4 +53,3 @@ $ cmake --build . --config Release
 This will create `Catch2_bench` executable. The results are output to stdout.
 
 [tool]: https://github.com/catchorg/Catch2
-[action]: https://github.com/rhysd/github-action-benchmark
