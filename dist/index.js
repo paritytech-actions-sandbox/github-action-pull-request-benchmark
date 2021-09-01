@@ -801,7 +801,7 @@ async function main() {
     const baseBench = await extract_1.extractResult(config.baseBenchmarkFilePath, config.tool, git_1.getBaseCommit(githubContext));
     console.log('Comparing PR benchmark to base branch...');
     await alert_1.compareBenchmarkAndAlert(prBench, baseBench, config, githubContext);
-    console.log('github-action-benchmark was run successfully!', '\nData:', prBench);
+    console.log('github-action-pull-request-benchmark was run successfully!', '\nData:', prBench);
 }
 main().catch(e => core.setFailed(e.message));
 //# sourceMappingURL=index.js.map
@@ -21879,6 +21879,12 @@ function convertBody(buffer, headers) {
 	// html4
 	if (!res && str) {
 		res = /<meta[\s]+?http-equiv=(['"])content-type\1[\s]+?content=(['"])(.+?)\2/i.exec(str);
+		if (!res) {
+			res = /<meta[\s]+?content=(['"])(.+?)\1[\s]+?http-equiv=(['"])content-type\3/i.exec(str);
+			if (res) {
+				res.pop(); // drop last quote
+			}
+		}
 
 		if (res) {
 			res = /charset=(.*)/i.exec(res.pop());
@@ -22886,7 +22892,7 @@ function fetch(url, opts) {
 				// HTTP fetch step 5.5
 				switch (request.redirect) {
 					case 'error':
-						reject(new FetchError(`redirect mode is set to error: ${request.url}`, 'no-redirect'));
+						reject(new FetchError(`uri requested responds with a redirect, redirect mode is set to error: ${request.url}`, 'no-redirect'));
 						finalize();
 						return;
 					case 'manual':
@@ -22925,7 +22931,8 @@ function fetch(url, opts) {
 							method: request.method,
 							body: request.body,
 							signal: request.signal,
-							timeout: request.timeout
+							timeout: request.timeout,
+							size: request.size
 						};
 
 						// HTTP-redirect fetch step 9
