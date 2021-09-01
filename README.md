@@ -54,14 +54,14 @@ jobs:
 
       # Run benchmark on the PR branch and stores the output to a separate file (must use the same tool as above)
       - name: Run pull request benchmark
-        run: cd pr/examples/benchmarkjs && npm install && npm install && node bench.js | tee benchmarks.txt
+        run: cd pr/examples/benchmarkjs && npm install && node bench.js | tee benchmarks.txt
 
       - name: Compare benchmark result
-        uses: larabr/github-action-benchmark@master
+        uses: openpgpjs/github-action-pull-request-benchmark@master
         with:
+          name: 'Time benchmark'
           # What benchmark tool the benchmarks.txt files came from
           tool: 'benchmarkjs'
-          name: 'time benchmark'
           # Where the two output files from the benchmark tool are stored
           pr-benchmark-file-path: pr/examples/benchmarks.txt
           base-benchmark-file-path: master/examples/benchmarks.txt
@@ -84,17 +84,8 @@ For documentation about each action input, see the definitions in [action.yml](.
 
 #### Tool-specific setup
 
-Please read `README.md` files at each example directory. Usually, take stdout from a benchmark tool
-and store it to file. Then specify the file path to `pr-benchmark-file-path` and `base-benchmark-file-path` input.
-
-- [`cargo bench` for Rust projects](./examples/rust/README.md)
-- [`go test` for Go projects](./examples/go/README.md)
-- [Benchmark.js for JavaScript/TypeScript projects](./examples/benchmarkjs/README.md)
-- [pytest-benchmark for Python projects with pytest](./examples/pytest/README.md)
-- [Google Benchmark Framework for C++ projects](./examples/cpp/README.md)
-
-These examples are run in workflows of this repository as described in the 'Examples' section above.
-
+See the `README.md` files under the `examples/` folder for details. Usually, take stdout from a benchmark tool
+and store it to file. Then specify the file path in `pr-benchmark-file-path` or `base-benchmark-file-path`.
 
 #### How to add new benchmark tool support
 

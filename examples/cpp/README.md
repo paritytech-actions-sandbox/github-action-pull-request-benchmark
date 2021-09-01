@@ -44,7 +44,7 @@ Set `googlecpp` to `tool` input.
 
 ```yaml
 - name: Compare benchmark result
-  uses: larabr/github-action-benchmark@v1
+  uses: openpgpjs/github-action-pull-request-benchmark@v1
   with:
     tool: 'googlecpp'
     pr-benchmark-file-path: benchmark_result.json
@@ -79,7 +79,7 @@ fib_10            210 ns          210 ns      3239181
 fib_20          27857 ns        27786 ns        25206
 ```
 
-To get JSON output for running [github-action-benchmark][action], please use another subcommand.
+To get JSON output for running [github-action-pull-request-benchmark][action], please use another subcommand.
 
 ```sh
 $ make json

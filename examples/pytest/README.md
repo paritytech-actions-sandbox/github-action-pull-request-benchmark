@@ -27,7 +27,7 @@ def some_test_case(benchmark):
 ```
 
 And run benchmarks with `--benchmark-json` in workflow. The JSON file will be an input to
-github-action-benchmark.
+github-action-pull-request-benchmark.
 
 e.g.
 
@@ -40,7 +40,7 @@ e.g.
 
 ```yaml
 - name: Compare benchmark result
-  uses: larabr/github-action-benchmark@v1
+  uses: openpgpjs/github-action-pull-request-benchmark@v1
   with:
     tool: 'pytest'
     pr-benchmark-file-path: output.json

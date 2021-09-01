@@ -31,7 +31,7 @@ Ensure to use `console` reporter for this. `xml` reporter may be supported in th
 
 ```yaml
 - name: Compare benchmark result
-  uses: larabr/github-action-benchmark@v1
+  uses: openpgpjs/github-action-pull-request-benchmark@v1
   with:
     tool: 'catch2'
     pr-benchmark-file-path: benchmark_result.json

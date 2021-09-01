@@ -20,7 +20,7 @@ Note that you should run the benchmarks using the bencher output format.
 
 ```yaml
 - name: Store benchmark result
-  uses: larabr/github-action-benchmark@v1
+  uses: openpgpjs/github-action-pull-request-benchmark@v1
   with:
       tool: 'cargo'
       pr-benchmark-file-path: output.txt

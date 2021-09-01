@@ -18,7 +18,7 @@ e.g.
 
 ```yaml
 - name: Compare benchmark result
-  uses: larabr/github-action-benchmark@v1
+  uses: openpgpjs/github-action-pull-request-benchmark@v1
   with:
     tool: 'go'
     pr-benchmark-file-path: output.txt

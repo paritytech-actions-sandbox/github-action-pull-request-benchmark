@@ -44,7 +44,7 @@ Store the benchmark results with step using the action. Please set `benchmarkjs`
 
 ```yaml
 - name: Compare benchmark result
-  uses: larabr/github-action-benchmark@v1
+  uses: openpgpjs/github-action-pull-request-benchmark@v1
   with:
     tool: 'benchmarkjs'
     pr-benchmark-file-path: output.txt

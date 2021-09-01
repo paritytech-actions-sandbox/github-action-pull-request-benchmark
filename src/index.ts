@@ -15,7 +15,7 @@ async function main() {
     console.log('Comparing PR benchmark to base branch...');
     await compareBenchmarkAndAlert(prBench, baseBench, config, githubContext);
 
-    console.log('github-action-benchmark was run successfully!', '\nData:', prBench);
+    console.log('github-action-pull-request-benchmark was run successfully!', '\nData:', prBench);
 }
 
 main().catch(e => core.setFailed(e.message));

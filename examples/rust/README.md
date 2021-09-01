@@ -29,7 +29,7 @@ lto = true
 
 ```yaml
 - name: Compare benchmark result
-  uses: larabr/github-action-benchmark@v1
+  uses: openpgpjs/github-action-pull-request-benchmark@v1
   with:
     tool: 'cargo'
     pr-benchmark-file-path: output.txt
