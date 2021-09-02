@@ -38,34 +38,21 @@ exports.compareBenchmarkAndAlert = exports.SCRIPT_PREFIX = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const git_1 = __nccwpck_require__(4647);
 exports.SCRIPT_PREFIX = 'window.BENCHMARK_DATA = ';
-function biggerIsBetter(tool) {
-    switch (tool) {
-        case 'cargo':
-            return false;
-        case 'go':
-            return false;
-        case 'benchmarkjs':
-            return true;
-        case 'pytest':
-            return true;
-        case 'googlecpp':
-            return false;
-        case 'catch2':
-            return false;
-    }
+function getRatio(current, prev) {
+    return current.biggerIsBetter
+        ? prev.value / current.value // e.g. current=100, prev=200
+        : current.value / prev.value;
 }
 function findAlerts(curSuite, prevSuite, threshold) {
     core.debug(`Comparing current:${curSuite.commit.id} and prev:${prevSuite.commit.id} for alert`);
     const alerts = [];
-    for (const current of curSuite.benches) {
-        const prev = prevSuite.benches.find(b => b.name === current.name);
+    for (const current of curSuite.benches.values()) {
+        const prev = prevSuite.benches.get(current.name);
         if (prev === undefined) {
             core.debug(`Skipped because benchmark '${current.name}' is not found in previous benchmarks`);
             continue;
         }
-        const ratio = biggerIsBetter(curSuite.tool)
-            ? prev.value / current.value // e.g. current=100, prev=200
-            : current.value / prev.value; // e.g. current=200, prev=100
+        const ratio = getRatio(current, prev);
         if (ratio > threshold) {
             core.warning(`Performance alert! Previous value was ${prev.value} and current value is ${current.value}.` +
                 ` It is ${ratio}x worse than previous exceeding a ratio threshold ${threshold}`);
@@ -107,13 +94,11 @@ function buildComment(benchName, curSuite, prevSuite, gitHubContext) {
         `| Benchmark suite | Current: ${curSuite.commit.id} | Previous: ${prevSuite.commit.id} | Ratio |`,
         '|-|-|-|-|',
     ];
-    for (const current of curSuite.benches) {
+    for (const current of curSuite.benches.values()) {
         let line;
-        const prev = prevSuite.benches.find(i => i.name === current.name);
+        const prev = prevSuite.benches.get(current.name);
         if (prev) {
-            const ratio = biggerIsBetter(curSuite.tool)
-                ? prev.value / current.value // e.g. current=100, prev=200
-                : current.value / prev.value;
+            const ratio = getRatio(current, prev);
             line = `| \`${current.name}\` | ${strVal(current)} | ${strVal(prev)} | \`${floatStr(ratio)}\` |`;
         }
         else {
@@ -388,8 +373,46 @@ exports.configFromJobInput = configFromJobInput;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.extractResult = void 0;
+exports.extractResult = exports.BenchmarkResultMap = void 0;
 const fs_1 = __nccwpck_require__(5747);
+class BenchmarkResultMap extends Map {
+    constructor(results) {
+        super();
+        // still need to check against duplicates
+        if (results) {
+            for (const result of results) {
+                this.set(result.name, result);
+            }
+        }
+    }
+    set(name, value) {
+        if (this.has(name)) {
+            throw new Error(`Benchmark result entries must have unique names`);
+        }
+        super.set(name, value);
+        return this;
+    }
+}
+exports.BenchmarkResultMap = BenchmarkResultMap;
+/**
+ * Return whether a larger value indicates improved performance
+ */
+function getBiggerIsBetter(tool) {
+    switch (tool) {
+        case 'cargo':
+            return false;
+        case 'go':
+            return false;
+        case 'benchmarkjs':
+            return true;
+        case 'pytest':
+            return true;
+        case 'googlecpp':
+            return false;
+        case 'catch2':
+            return false;
+    }
+}
 function getHumanReadableUnitValue(seconds) {
     if (seconds < 1.0e-6) {
         return [seconds * 1e9, 'nsec'];
@@ -405,8 +428,9 @@ function getHumanReadableUnitValue(seconds) {
     }
 }
 function extractCargoResult(output) {
+    const biggerIsBetter = getBiggerIsBetter('cargo');
     const lines = output.split(/\r?\n/g);
-    const ret = [];
+    const ret = new BenchmarkResultMap();
     // Example:
     //   test bench_fib_20 ... bench:      37,174 ns/iter (+/- 7,527)
     const reExtract = /^test ([\w/]+)\s+\.\.\. bench:\s+([0-9,]+) ns\/iter \(\+\/- ([0-9,]+)\)$/;
@@ -419,18 +443,20 @@ function extractCargoResult(output) {
         const name = m[1];
         const value = parseInt(m[2].replace(reComma, ''), 10);
         const range = m[3].replace(reComma, '');
-        ret.push({
+        ret.set(name, {
             name,
             value,
             range: `± ${range}`,
             unit: 'ns/iter',
+            biggerIsBetter,
         });
     }
     return ret;
 }
 function extractGoResult(output) {
+    const biggerIsBetter = getBiggerIsBetter('go');
     const lines = output.split(/\r?\n/g);
-    const ret = [];
+    const ret = new BenchmarkResultMap();
     // Example:
     //   BenchmarkFib20-8           30000             41653 ns/op
     //   BenchmarkDoWithConfigurer1-8            30000000                42.3 ns/op
@@ -449,13 +475,14 @@ function extractGoResult(output) {
         if (procs !== null) {
             extra += `\n${procs} procs`;
         }
-        ret.push({ name, value, unit, extra });
+        ret.set(name, { name, value, unit, extra, biggerIsBetter });
     }
     return ret;
 }
 function extractBenchmarkJsResult(output) {
+    const biggerIsBetter = getBiggerIsBetter('benchmarkjs');
     const lines = output.split(/\r?\n/g);
-    const ret = [];
+    const ret = new BenchmarkResultMap();
     // Example:
     //   fib(20) x 11,465 ops/sec ±1.12% (91 runs sampled)
     //   createObjectBuffer with 200 comments x 81.61 ops/sec ±1.70% (69 runs sampled)
@@ -476,29 +503,34 @@ function extractBenchmarkJsResult(output) {
         const unit = m[2];
         const range = m[3];
         const extra = `${m[4]} samples`;
-        ret.push({ name, value, range, unit, extra });
+        ret.set(name, { name, value, range, unit, extra, biggerIsBetter });
     }
     return ret;
 }
 function extractPytestResult(output) {
+    const biggerIsBetter = getBiggerIsBetter('pytest');
+    let json;
     try {
-        const json = JSON.parse(output);
-        return json.benchmarks.map(bench => {
-            const stats = bench.stats;
-            const name = bench.fullname;
-            const value = stats.ops;
-            const unit = 'iter/sec';
-            const range = `stddev: ${stats.stddev}`;
-            const [mean, meanUnit] = getHumanReadableUnitValue(stats.mean);
-            const extra = `mean: ${mean} ${meanUnit}\nrounds: ${stats.rounds}`;
-            return { name, value, unit, range, extra };
-        });
+        json = JSON.parse(output);
     }
     catch (err) {
         throw new Error(`Output file for 'pytest' must be JSON file generated by --benchmark-json option: ${err.message}`);
     }
+    const ret = new BenchmarkResultMap();
+    for (const bench of json.benchmarks) {
+        const stats = bench.stats;
+        const name = bench.fullname;
+        const value = stats.ops;
+        const unit = 'iter/sec';
+        const range = `stddev: ${stats.stddev}`;
+        const [mean, meanUnit] = getHumanReadableUnitValue(stats.mean);
+        const extra = `mean: ${mean} ${meanUnit}\nrounds: ${stats.rounds}`;
+        ret.set(name, { name, value, unit, range, extra, biggerIsBetter });
+    }
+    return ret;
 }
 function extractGoogleCppResult(output) {
+    const biggerIsBetter = getBiggerIsBetter('googlecpp');
     let json;
     try {
         json = JSON.parse(output);
@@ -506,13 +538,15 @@ function extractGoogleCppResult(output) {
     catch (err) {
         throw new Error(`Output file for 'googlecpp' must be JSON file generated by --benchmark_format=json option: ${err.message}`);
     }
-    return json.benchmarks.map(b => {
+    const ret = new BenchmarkResultMap();
+    for (const b of json.benchmarks) {
         const name = b.name;
         const value = b.real_time;
         const unit = b.time_unit + '/iter';
         const extra = `iterations: ${b.iterations}\ncpu: ${b.cpu_time} ${b.time_unit}\nthreads: ${b.threads}`;
-        return { name, value, unit, extra };
-    });
+        ret.set(name, { name, value, unit, extra, biggerIsBetter });
+    }
+    return ret;
 }
 function extractCatch2Result(output) {
     // Example:
@@ -523,6 +557,7 @@ function extractCatch2Result(output) {
     // Fibonacci 20   100           2             8.4318 ms <-- Start actual benchmark
     //                43.186 us     41.402 us     46.246 us <-- Actual benchmark data
     //                11.719 us      7.847 us     17.747 us <-- Ignored
+    const biggerIsBetter = getBiggerIsBetter('catch2');
     const reTestCaseStart = /^benchmark name +samples +iterations +estimated/;
     const reBenchmarkStart = /(\d+) +(\d+) +(?:\d+(\.\d+)?) (?:ns|ms|us|s)\s*$/;
     const reBenchmarkValues = /^ +(\d+(?:\.\d+)?) (ns|us|ms|s) +(?:\d+(?:\.\d+)?) (?:ns|us|ms|s) +(?:\d+(?:\.\d+)?) (?:ns|us|ms|s)/;
@@ -564,9 +599,9 @@ function extractCatch2Result(output) {
         if (emptyLine === null || !reEmptyLine.test(emptyLine)) {
             throw new Error(`Empty line is not following after 'std dev' line of benchmark '${name}' at line ${emptyLineNum}`);
         }
-        return { name, value, range, unit, extra };
+        return { name, value, range, unit, extra, biggerIsBetter };
     }
-    const ret = [];
+    const ret = new BenchmarkResultMap();
     while (lines.length > 0) {
         // Search header of benchmark section
         const line = nextLine()[0];
@@ -592,7 +627,7 @@ function extractCatch2Result(output) {
             if (res === null) {
                 break;
             }
-            ret.push(res);
+            ret.set(res.name, res);
             benchFound = true;
         }
         if (!benchFound) {
@@ -634,7 +669,7 @@ async function extractResult(filePath, tool, commit) {
         default:
             throw new Error(`FATAL: Unexpected tool: '${tool}'`);
     }
-    if (benches.length === 0) {
+    if (benches.size === 0) {
         throw new Error(`No benchmark result was found in ${filePath}. Benchmark output was '${output}'`);
     }
     return {

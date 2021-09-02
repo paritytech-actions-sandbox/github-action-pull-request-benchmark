@@ -2,7 +2,7 @@ import { deepStrictEqual as eq, ok as assertOk } from 'assert';
 import * as path from 'path';
 import { SinonSandbox, createSandbox, SinonStub, assert as sinonAssert } from 'sinon';
 import { Config } from '../src/config';
-import { Benchmark } from '../src/extract';
+import { Benchmark, BenchmarkResultMap } from '../src/extract';
 import { compareBenchmarkAndAlert } from '../src/alert';
 import { GitHubContext, PayloadRepository } from '../src/git';
 import * as git from '../src/git';
@@ -98,12 +98,13 @@ describe('comparexBenchmark()', function() {
         };
     }
 
-    function bench(name: string, value: number, range = '± 20', unit = 'ns/iter') {
+    function bench(name: string, value: number, range = '± 20', unit = 'ns/iter', biggerIsBetter = false) {
         return {
             name,
             range,
             unit,
             value,
+            biggerIsBetter,
         };
     }
 
@@ -155,13 +156,13 @@ describe('comparexBenchmark()', function() {
                     commit: commit('prev commit id'),
                     date: lastUpdate - 1000,
                     tool: 'go',
-                    benches: [bench('bench_fib_10', 100), bench('bench_fib_20', 10000)],
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 100), bench('bench_fib_20', 10000)]),
                 },
                 prBenchmark: {
                     commit: commit('current commit id'),
                     date: lastUpdate,
                     tool: 'go',
-                    benches: [bench('bench_fib_10', 210), bench('bench_fib_20', 25000)], // Exceeds 2.0 threshold
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 210), bench('bench_fib_20', 25000)]), // Exceeds 2.0 threshold
                 },
                 error: [
                     '# **Performance Alert**',
@@ -186,13 +187,13 @@ describe('comparexBenchmark()', function() {
                     commit: commit('prev commit id'),
                     date: lastUpdate - 1000,
                     tool: 'benchmarkjs',
-                    benches: [bench('benchFib10', 100, '+-20', 'ops/sec')],
+                    benches: new BenchmarkResultMap([bench('benchFib10', 100, '+-20', 'ops/sec', true)]),
                 },
                 prBenchmark: {
                     commit: commit('current commit id'),
                     date: lastUpdate,
                     tool: 'benchmarkjs',
-                    benches: [bench('benchFib10', 20, '+-20', 'ops/sec')], // ops/sec so bigger is better
+                    benches: new BenchmarkResultMap([bench('benchFib10', 20, '+-20', 'ops/sec', true)]), // ops/sec so bigger is better
                 },
                 error: [
                     '# **Performance Alert**',
@@ -216,13 +217,13 @@ describe('comparexBenchmark()', function() {
                     commit: commit('prev commit id'),
                     date: lastUpdate - 1000,
                     tool: 'cargo',
-                    benches: [bench('bench_fib_10', 100)],
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 100)]),
                 },
                 prBenchmark: {
                     commit: commit('current commit id'),
                     date: lastUpdate,
                     tool: 'cargo',
-                    benches: [bench('bench_fib_10', 210)], // Exceeds 2.0 threshold
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 210)]), // Exceeds 2.0 threshold
                 },
                 error: [
                     '# **Performance Alert**',
@@ -246,13 +247,13 @@ describe('comparexBenchmark()', function() {
                     commit: commit('prev commit id'),
                     date: lastUpdate - 1000,
                     tool: 'googlecpp',
-                    benches: [bench('bench_fib_10', 100)],
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 100)]),
                 },
                 prBenchmark: {
                     commit: commit('current commit id'),
                     date: lastUpdate,
                     tool: 'googlecpp',
-                    benches: [bench('bench_fib_10', 210)], // Exceeds 2.0 threshold
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 210)]), // Exceeds 2.0 threshold
                 },
                 error: [
                     '# **Performance Alert**',
@@ -274,13 +275,13 @@ describe('comparexBenchmark()', function() {
                     commit: commit('prev commit id'),
                     date: lastUpdate - 1000,
                     tool: 'cargo',
-                    benches: [bench('bench_fib_10', 100)],
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 100)]),
                 },
                 prBenchmark: {
                     commit: commit('current commit id'),
                     date: lastUpdate,
                     tool: 'cargo',
-                    benches: [bench('bench_fib_10', 210)], // Exceeds 2.0 threshold
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 210)]), // Exceeds 2.0 threshold
                 },
                 commitComment: 'Comment was generated at https://dummy-comment-url',
             },
@@ -291,13 +292,13 @@ describe('comparexBenchmark()', function() {
                     commit: commit('prev commit id'),
                     date: lastUpdate - 1000,
                     tool: 'cargo',
-                    benches: [bench('bench_fib_10', 100)],
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 100)]),
                 },
                 prBenchmark: {
                     commit: commit('current commit id'),
                     date: lastUpdate,
                     tool: 'cargo',
-                    benches: [bench('bench_fib_10', 210)], // Exceeds 2.0 threshold
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 210)]), // Exceeds 2.0 threshold
                 },
                 error: undefined,
                 commitComment: undefined,
@@ -309,13 +310,13 @@ describe('comparexBenchmark()', function() {
                     commit: commit('prev commit id'),
                     date: lastUpdate - 1000,
                     tool: 'cargo',
-                    benches: [bench('another_bench', 100)],
+                    benches: new BenchmarkResultMap([bench('another_bench', 100)]),
                 },
                 prBenchmark: {
                     commit: commit('current commit id'),
                     date: lastUpdate,
                     tool: 'cargo',
-                    benches: [bench('bench_fib_10', 210)], // Exceeds 2.0 threshold
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 210)]), // Exceeds 2.0 threshold
                 },
                 error: undefined,
                 commitComment: undefined,
@@ -328,13 +329,13 @@ describe('comparexBenchmark()', function() {
                     commit: commit('prev commit id'),
                     date: lastUpdate - 1000,
                     tool: 'cargo',
-                    benches: [bench('bench_fib_10', 100)],
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 100)]),
                 },
                 prBenchmark: {
                     commit: commit('current commit id'),
                     date: lastUpdate,
                     tool: 'cargo',
-                    benches: [bench('bench_fib_10', 210)], // Exceeds 2.0 threshold
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 210)]), // Exceeds 2.0 threshold
                 },
                 error: ["'comment-on-alert' input is set but 'github-token' input is not set"],
                 commitComment: undefined,
@@ -346,13 +347,13 @@ describe('comparexBenchmark()', function() {
                     commit: commit('prev commit id'),
                     date: lastUpdate - 1000,
                     tool: 'cargo',
-                    benches: [bench('bench_fib_10', 100)],
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 100)]),
                 },
                 prBenchmark: {
                     commit: commit('current commit id'),
                     date: lastUpdate,
                     tool: 'cargo',
-                    benches: [bench('bench_fib_10', 210)], // Exceeds 2.0 threshold
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 210)]), // Exceeds 2.0 threshold
                 },
                 undefinedRepoPayload: true,
                 error: ['Repository information is not available in payload: {}'],
@@ -364,13 +365,13 @@ describe('comparexBenchmark()', function() {
                     commit: commit('prev commit id'),
                     date: lastUpdate - 1000,
                     tool: 'benchmarkjs',
-                    benches: [bench('benchFib10', 100, '+-20', 'ops/sec')],
+                    benches: new BenchmarkResultMap([bench('benchFib10', 100, '+-20', 'ops/sec', true)]),
                 },
                 prBenchmark: {
                     commit: commit('current commit id'),
                     date: lastUpdate,
                     tool: 'benchmarkjs',
-                    benches: [bench('benchFib10', 100, '+-20', 'ops/sec')],
+                    benches: new BenchmarkResultMap([bench('benchFib10', 100, '+-20', 'ops/sec', true)]),
                 },
                 error: [
                     '# Performance Report',
@@ -394,13 +395,13 @@ describe('comparexBenchmark()', function() {
                     commit: commit('prev commit id'),
                     date: lastUpdate - 1000,
                     tool: 'go',
-                    benches: [bench('bench_fib_10', 100)],
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 100)]),
                 },
                 prBenchmark: {
                     commit: commit('current commit id'),
                     date: lastUpdate,
                     tool: 'go',
-                    benches: [bench('bench_fib_10', 350)], // Exceeds 3.0 failure threshold
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 350)]), // Exceeds 3.0 failure threshold
                 },
                 error: [
                     '1 of 1 alerts exceeded the failure threshold `3` specified by fail-threshold input:',
@@ -426,13 +427,13 @@ describe('comparexBenchmark()', function() {
                     commit: commit('prev commit id'),
                     date: lastUpdate - 1000,
                     tool: 'go',
-                    benches: [bench('bench_fib_10', 100)],
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 100)]),
                 },
                 prBenchmark: {
                     commit: commit('current commit id'),
                     date: lastUpdate,
                     tool: 'go',
-                    benches: [bench('bench_fib_10', 210)], // Exceeds 2.0 threshold
+                    benches: new BenchmarkResultMap([bench('bench_fib_10', 210)]), // Exceeds 2.0 threshold
                 },
                 error: undefined,
             },

@@ -61,12 +61,14 @@ describe('extractResult()', function() {
                     range: '± 24',
                     unit: 'ns/iter',
                     value: 135,
+                    biggerIsBetter: false,
                 },
                 {
                     name: 'bench_fib_20',
                     range: '± 755',
                     unit: 'ns/iter',
                     value: 18149,
+                    biggerIsBetter: false,
                 },
             ],
         },
@@ -79,6 +81,7 @@ describe('extractResult()', function() {
                     unit: 'ns',
                     value: 344,
                     extra: '100 samples\n208 iterations',
+                    biggerIsBetter: false,
                 },
                 {
                     name: 'Fibonacci 20',
@@ -86,6 +89,7 @@ describe('extractResult()', function() {
                     unit: 'us',
                     value: 41.731,
                     extra: '100 samples\n2 iterations',
+                    biggerIsBetter: false,
                 },
                 {
                     name: 'Fibonacci~ 5!',
@@ -93,6 +97,7 @@ describe('extractResult()', function() {
                     unit: 'ns',
                     value: 36,
                     extra: '100 samples\n1961 iterations',
+                    biggerIsBetter: false,
                 },
                 {
                     name: 'Fibonacci-15_bench',
@@ -100,6 +105,7 @@ describe('extractResult()', function() {
                     unit: 'us',
                     value: 3.789,
                     extra: '100 samples\n20 iterations',
+                    biggerIsBetter: false,
                 },
             ],
         },
@@ -111,12 +117,14 @@ describe('extractResult()', function() {
                     unit: 'ns/op',
                     value: 325,
                     extra: '5000000 times\n8 procs',
+                    biggerIsBetter: false,
                 },
                 {
                     name: 'BenchmarkFib20',
                     unit: 'ns/op',
                     value: 40537.123,
                     extra: '30000 times',
+                    biggerIsBetter: false,
                 },
             ],
         },
@@ -129,6 +137,7 @@ describe('extractResult()', function() {
                     unit: 'ops/sec',
                     value: 1431759,
                     extra: '93 samples',
+                    biggerIsBetter: true,
                 },
                 {
                     name: 'fib(20)',
@@ -136,6 +145,7 @@ describe('extractResult()', function() {
                     unit: 'ops/sec',
                     value: 12146,
                     extra: '96 samples',
+                    biggerIsBetter: true,
                 },
                 {
                     name: 'createObjectBuffer with 200 comments',
@@ -143,6 +153,7 @@ describe('extractResult()', function() {
                     unit: 'ops/sec',
                     value: 81.61,
                     extra: '69 samples',
+                    biggerIsBetter: true,
                 },
             ],
         },
@@ -155,6 +166,7 @@ describe('extractResult()', function() {
                     unit: 'iter/sec',
                     value: 41513.272817492856,
                     extra: 'mean: 24.08868133322941 usec\nrounds: 38523',
+                    biggerIsBetter: true,
                 },
                 {
                     name: 'bench.py::test_fib_20',
@@ -162,6 +174,7 @@ describe('extractResult()', function() {
                     unit: 'iter/sec',
                     value: 335.0049328331567,
                     extra: 'mean: 2.9850306726618627 msec\nrounds: 278',
+                    biggerIsBetter: true,
                 },
             ],
         },
@@ -173,12 +186,14 @@ describe('extractResult()', function() {
                     name: 'fib_10',
                     unit: 'ns/iter',
                     value: 214.98980114547953,
+                    biggerIsBetter: false,
                 },
                 {
                     extra: 'iterations: 23968\ncpu: 27364.90320427236 ns\nthreads: 1',
                     name: 'fib_20',
                     unit: 'ns/iter',
                     value: 27455.600415007055,
+                    biggerIsBetter: false,
                 },
             ],
         },
@@ -192,6 +207,7 @@ describe('extractResult()', function() {
                     range: 'stddev: 2.9351731952139377e-8',
                     unit: 'iter/sec',
                     value: 6668618.238403659,
+                    biggerIsBetter: true,
                 },
                 {
                     name: 'bench.py::test_fib_10',
@@ -199,6 +215,7 @@ describe('extractResult()', function() {
                     unit: 'iter/sec',
                     value: 34652.98828915334,
                     extra: 'mean: 28.85754012484424 usec\nrounds: 20025',
+                    biggerIsBetter: true,
                 },
                 {
                     name: 'bench.py::test_fib_20',
@@ -206,6 +223,7 @@ describe('extractResult()', function() {
                     unit: 'iter/sec',
                     value: 276.8613383807958,
                     extra: 'mean: 3.611916368852473 msec\nrounds: 122',
+                    biggerIsBetter: true,
                 },
                 {
                     extra: 'mean: 2.0038430469999997 sec\nrounds: 5',
@@ -213,6 +231,7 @@ describe('extractResult()', function() {
                     range: 'stddev: 0.0018776587251587858',
                     unit: 'iter/sec',
                     value: 0.49904108083570886,
+                    biggerIsBetter: true,
                 },
             ],
         },
@@ -226,6 +245,7 @@ describe('extractResult()', function() {
                     range: '± 0',
                     unit: 'ns',
                     value: 0,
+                    biggerIsBetter: false,
                 },
                 {
                     extra: '100 samples\n75814 iterations',
@@ -233,10 +253,13 @@ describe('extractResult()', function() {
                     range: '± 0',
                     unit: 'ns',
                     value: 1,
+                    biggerIsBetter: false,
                 },
             ],
         },
     ];
+
+    const sortByName = (a: BenchmarkResult, b: BenchmarkResult) => a.name.localeCompare(b.name);
 
     for (const test of normalCases) {
         it('extracts benchmark output from ' + test.tool, async function() {
@@ -255,7 +278,7 @@ describe('extractResult()', function() {
             A.equal(bench.commit.id, mockedGitHubContext!.payload!.pull_request!.head.sha);
             A.ok(bench.date <= Date.now(), bench.date.toString());
             A.equal(bench.tool, test.tool);
-            A.deepEqual(test.expected, bench.benches);
+            A.deepEqual(test.expected.sort(sortByName), Array.from(bench.benches.values()).sort(sortByName));
         });
     }
 

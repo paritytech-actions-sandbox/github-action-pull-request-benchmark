@@ -1,6 +1,6 @@
 import * as core from '@actions/core';
 import { Benchmark, BenchmarkResult } from './extract';
-import { Config, ToolType } from './config';
+import { Config } from './config';
 import { GitHubContext, getCurrentRepo, publishComment } from './git';
 
 export type BenchmarkSuites = { [name: string]: Benchmark[] };
@@ -12,43 +12,30 @@ export interface DataJson {
 
 export const SCRIPT_PREFIX = 'window.BENCHMARK_DATA = ';
 
-function biggerIsBetter(tool: ToolType): boolean {
-    switch (tool) {
-        case 'cargo':
-            return false;
-        case 'go':
-            return false;
-        case 'benchmarkjs':
-            return true;
-        case 'pytest':
-            return true;
-        case 'googlecpp':
-            return false;
-        case 'catch2':
-            return false;
-    }
-}
-
 interface Alert {
     current: BenchmarkResult;
     prev: BenchmarkResult;
     ratio: number;
 }
 
+function getRatio(current: BenchmarkResult, prev: BenchmarkResult): number {
+    return current.biggerIsBetter
+        ? prev.value / current.value // e.g. current=100, prev=200
+        : current.value / prev.value;
+}
+
 function findAlerts(curSuite: Benchmark, prevSuite: Benchmark, threshold: number): Alert[] {
     core.debug(`Comparing current:${curSuite.commit.id} and prev:${prevSuite.commit.id} for alert`);
 
     const alerts = [];
-    for (const current of curSuite.benches) {
-        const prev = prevSuite.benches.find(b => b.name === current.name);
+    for (const current of curSuite.benches.values()) {
+        const prev = prevSuite.benches.get(current.name);
         if (prev === undefined) {
             core.debug(`Skipped because benchmark '${current.name}' is not found in previous benchmarks`);
             continue;
         }
 
-        const ratio = biggerIsBetter(curSuite.tool)
-            ? prev.value / current.value // e.g. current=100, prev=200
-            : current.value / prev.value; // e.g. current=200, prev=100
+        const ratio = getRatio(current, prev);
 
         if (ratio > threshold) {
             core.warning(
@@ -106,14 +93,12 @@ function buildComment(
         '|-|-|-|-|',
     ];
 
-    for (const current of curSuite.benches) {
+    for (const current of curSuite.benches.values()) {
         let line;
-        const prev = prevSuite.benches.find(i => i.name === current.name);
+        const prev = prevSuite.benches.get(current.name);
 
         if (prev) {
-            const ratio = biggerIsBetter(curSuite.tool)
-                ? prev.value / current.value // e.g. current=100, prev=200
-                : current.value / prev.value;
+            const ratio = getRatio(current, prev);
 
             line = `| \`${current.name}\` | ${strVal(current)} | ${strVal(prev)} | \`${floatStr(ratio)}\` |`;
         } else {
