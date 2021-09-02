@@ -11,7 +11,8 @@
     "watch": "npm-run-all -p watch:tsc watch:mocha",
     "lint": "eslint '**/*.ts'",
     "mocha": "mocha ./lib/test",
-    "test": "npm-run-all build mocha"
+    "test": "npm-run-all build mocha",
+    "preversion": "npm run build && git add -A dist/index.js"
   },
   "repository": {
     "type": "git",

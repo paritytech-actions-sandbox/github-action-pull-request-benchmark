@@ -57,7 +57,7 @@ jobs:
         run: cd pr/examples/benchmarkjs && npm install && node bench.js | tee benchmarks.txt
 
       - name: Compare benchmark result
-        uses: openpgpjs/github-action-pull-request-benchmark@master
+        uses: openpgpjs/github-action-pull-request-benchmark@v1
         with:
           name: 'Time benchmark'
           # What benchmark tool the benchmarks.txt files came from
