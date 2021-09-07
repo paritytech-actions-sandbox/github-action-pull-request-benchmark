@@ -231,7 +231,7 @@ const core = __importStar(__nccwpck_require__(2186));
 const fs_1 = __nccwpck_require__(5747);
 const os = __importStar(__nccwpck_require__(2087));
 const path = __importStar(__nccwpck_require__(5622));
-exports.VALID_TOOLS = new Set(['cargo', 'go', 'benchmarkjs', 'pytest', 'googlecpp', 'catch2']);
+exports.VALID_TOOLS = new Set(['cargo', 'go', 'benchmarkjs', 'pytest', 'googlecpp', 'catch2', 'raw']);
 function validateToolType(tool) {
     if (exports.VALID_TOOLS.has(tool)) {
         return;
@@ -411,6 +411,8 @@ function getBiggerIsBetter(tool) {
             return false;
         case 'catch2':
             return false;
+        default:
+            throw new Error('Unexpected input');
     }
 }
 function getHumanReadableUnitValue(seconds) {
@@ -426,6 +428,24 @@ function getHumanReadableUnitValue(seconds) {
     else {
         return [seconds, 'sec'];
     }
+}
+function extractRawResult(output) {
+    const entries = JSON.parse(output);
+    const ret = new BenchmarkResultMap();
+    for (const { name, value, range, unit, biggerIsBetter } of entries) {
+        const stored = ret.set(name, {
+            name,
+            value: parseFloat(value),
+            range,
+            unit,
+            biggerIsBetter,
+        });
+        const missing = Object.values(stored).some(value => value === undefined);
+        if (missing) {
+            throw new Error(`Invalid raw entry format`);
+        }
+    }
+    return ret;
 }
 function extractCargoResult(output) {
     const biggerIsBetter = getBiggerIsBetter('cargo');
@@ -665,6 +685,9 @@ async function extractResult(filePath, tool, commit) {
             break;
         case 'catch2':
             benches = extractCatch2Result(output);
+            break;
+        case 'raw':
+            benches = extractRawResult(output);
             break;
         default:
             throw new Error(`FATAL: Unexpected tool: '${tool}'`);

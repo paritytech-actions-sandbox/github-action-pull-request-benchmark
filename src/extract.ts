@@ -148,6 +148,8 @@ function getBiggerIsBetter(tool: ToolType): boolean {
             return false;
         case 'catch2':
             return false;
+        default:
+            throw new Error('Unexpected input');
     }
 }
 
@@ -161,6 +163,26 @@ function getHumanReadableUnitValue(seconds: number): [number, string] {
     } else {
         return [seconds, 'sec'];
     }
+}
+
+function extractRawResult(output: string): BenchmarkResultMap {
+    const entries = JSON.parse(output);
+    const ret = new BenchmarkResultMap();
+
+    for (const { name, value, range, unit, biggerIsBetter } of entries) {
+        const stored = ret.set(name, {
+            name,
+            value: parseFloat(value),
+            range,
+            unit,
+            biggerIsBetter,
+        });
+        const missing = Object.values(stored).some(value => value === undefined);
+        if (missing) {
+            throw new Error(`Invalid raw entry format`);
+        }
+    }
+    return ret;
 }
 
 function extractCargoResult(output: string): BenchmarkResultMap {
@@ -450,6 +472,9 @@ export async function extractResult(filePath: string, tool: string, commit: Comm
             break;
         case 'catch2':
             benches = extractCatch2Result(output);
+            break;
+        case 'raw':
+            benches = extractRawResult(output);
             break;
         default:
             throw new Error(`FATAL: Unexpected tool: '${tool}'`);
