@@ -35,15 +35,6 @@ class FakedOctokitRepos {
 
 const fakedRepos = new FakedOctokitRepos();
 
-// class MockedOctokit {
-//     repos: FakedOctokitRepos;
-//     opt: { token: string };
-//     constructor(token: string) {
-//         this.opt = { token };
-//         this.repos = fakedRepos;
-//     }
-// }
-
 const mockedGitHubContext = {
     payload: {
         repository: {
@@ -59,7 +50,6 @@ const mockedGitHubContext = {
     workflow: 'Workflow name',
 };
 
-// mock('@actions/github', { context: mockedGitHubContext, GitHub: MockedOctokit });
 describe('comparexBenchmark()', function() {
     const rootDir = process.cwd();
 
@@ -68,8 +58,6 @@ describe('comparexBenchmark()', function() {
     });
 
     after(function() {
-        // mock.stop('@actions/core');
-        // mock.stop('@actions/github');
         process.chdir(rootDir);
     });
 
@@ -456,7 +444,7 @@ describe('comparexBenchmark()', function() {
                     if (!t.error && !t.commitComment) {
                         throw err;
                     }
-                    caughtError = err;
+                    caughtError = err as any;
                 }
 
                 if (t.error) {
