@@ -11,7 +11,7 @@ inputs:
     required: true
     default: 'Benchmark'
   tool:
-    description: 'Tool to use get benchmark output. One of "cargo", "go", "benchmarkjs", "pytest"'
+    description: 'Tool used to get benchmark output. One of "cargo", "go", "benchmarkjs", "pytest", "raw"'
     required: true
   pr-benchmark-file-path:
     description: 'A path to file which contains the benchmark output from the pull request'

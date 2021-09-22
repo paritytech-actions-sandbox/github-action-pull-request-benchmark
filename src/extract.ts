@@ -8,13 +8,35 @@ export interface BenchmarkResult {
     range?: string;
     unit: string;
     extra?: string;
+    // whether a larger value indicates improved performance
+    biggerIsBetter: boolean;
+}
+
+export class BenchmarkResultMap extends Map<string, BenchmarkResult> {
+    constructor(results?: BenchmarkResult[]) {
+        super();
+        // still need to check against duplicates
+        if (results) {
+            for (const result of results) {
+                this.set(result.name, result);
+            }
+        }
+    }
+
+    set(name: string, value: BenchmarkResult) {
+        if (this.has(name)) {
+            throw new Error(`Benchmark result entries must have unique names`);
+        }
+        super.set(name, value);
+        return this;
+    }
 }
 
 export interface Benchmark {
     commit: Commit;
     date: number;
     tool: ToolType;
-    benches: BenchmarkResult[];
+    benches: BenchmarkResultMap;
 }
 
 export interface GoogleCppBenchmarkJson {
@@ -109,6 +131,28 @@ export interface PytestBenchmarkJson {
     version: string;
 }
 
+/**
+ * Return whether a larger value indicates improved performance
+ */
+function getBiggerIsBetter(tool: ToolType): boolean {
+    switch (tool) {
+        case 'cargo':
+            return false;
+        case 'go':
+            return false;
+        case 'benchmarkjs':
+            return true;
+        case 'pytest':
+            return true;
+        case 'googlecpp':
+            return false;
+        case 'catch2':
+            return false;
+        default:
+            throw new Error('Unexpected input');
+    }
+}
+
 function getHumanReadableUnitValue(seconds: number): [number, string] {
     if (seconds < 1.0e-6) {
         return [seconds * 1e9, 'nsec'];
@@ -121,9 +165,30 @@ function getHumanReadableUnitValue(seconds: number): [number, string] {
     }
 }
 
-function extractCargoResult(output: string): BenchmarkResult[] {
+function extractRawResult(output: string): BenchmarkResultMap {
+    const entries = JSON.parse(output);
+    const ret = new BenchmarkResultMap();
+
+    for (const { name, value, range, unit, biggerIsBetter } of entries) {
+        const stored = ret.set(name, {
+            name,
+            value: parseFloat(value),
+            range,
+            unit,
+            biggerIsBetter,
+        });
+        const missing = Object.values(stored).some(value => value === undefined);
+        if (missing) {
+            throw new Error(`Invalid raw entry format`);
+        }
+    }
+    return ret;
+}
+
+function extractCargoResult(output: string): BenchmarkResultMap {
+    const biggerIsBetter = getBiggerIsBetter('cargo');
     const lines = output.split(/\r?\n/g);
-    const ret = [];
+    const ret = new BenchmarkResultMap();
     // Example:
     //   test bench_fib_20 ... bench:      37,174 ns/iter (+/- 7,527)
     const reExtract = /^test ([\w/]+)\s+\.\.\. bench:\s+([0-9,]+) ns\/iter \(\+\/- ([0-9,]+)\)$/;
@@ -139,20 +204,22 @@ function extractCargoResult(output: string): BenchmarkResult[] {
         const value = parseInt(m[2].replace(reComma, ''), 10);
         const range = m[3].replace(reComma, '');
 
-        ret.push({
+        ret.set(name, {
             name,
             value,
             range: `± ${range}`,
             unit: 'ns/iter',
+            biggerIsBetter,
         });
     }
 
     return ret;
 }
 
-function extractGoResult(output: string): BenchmarkResult[] {
+function extractGoResult(output: string): BenchmarkResultMap {
+    const biggerIsBetter = getBiggerIsBetter('go');
     const lines = output.split(/\r?\n/g);
-    const ret = [];
+    const ret = new BenchmarkResultMap();
     // Example:
     //   BenchmarkFib20-8           30000             41653 ns/op
     //   BenchmarkDoWithConfigurer1-8            30000000                42.3 ns/op
@@ -175,15 +242,17 @@ function extractGoResult(output: string): BenchmarkResult[] {
             extra += `\n${procs} procs`;
         }
 
-        ret.push({ name, value, unit, extra });
+        ret.set(name, { name, value, unit, extra, biggerIsBetter });
     }
 
     return ret;
 }
 
-function extractBenchmarkJsResult(output: string): BenchmarkResult[] {
+function extractBenchmarkJsResult(output: string): BenchmarkResultMap {
+    const biggerIsBetter = getBiggerIsBetter('benchmarkjs');
+
     const lines = output.split(/\r?\n/g);
-    const ret = [];
+    const ret = new BenchmarkResultMap();
     // Example:
     //   fib(20) x 11,465 ops/sec ±1.12% (91 runs sampled)
     //   createObjectBuffer with 200 comments x 81.61 ops/sec ±1.70% (69 runs sampled)
@@ -208,33 +277,40 @@ function extractBenchmarkJsResult(output: string): BenchmarkResult[] {
         const range = m[3];
         const extra = `${m[4]} samples`;
 
-        ret.push({ name, value, range, unit, extra });
+        ret.set(name, { name, value, range, unit, extra, biggerIsBetter });
     }
 
     return ret;
 }
 
-function extractPytestResult(output: string): BenchmarkResult[] {
+function extractPytestResult(output: string): BenchmarkResultMap {
+    const biggerIsBetter = getBiggerIsBetter('pytest');
+
+    let json: PytestBenchmarkJson;
     try {
-        const json: PytestBenchmarkJson = JSON.parse(output);
-        return json.benchmarks.map(bench => {
-            const stats = bench.stats;
-            const name = bench.fullname;
-            const value = stats.ops;
-            const unit = 'iter/sec';
-            const range = `stddev: ${stats.stddev}`;
-            const [mean, meanUnit] = getHumanReadableUnitValue(stats.mean);
-            const extra = `mean: ${mean} ${meanUnit}\nrounds: ${stats.rounds}`;
-            return { name, value, unit, range, extra };
-        });
+        json = JSON.parse(output);
     } catch (err) {
         throw new Error(
             `Output file for 'pytest' must be JSON file generated by --benchmark-json option: ${err.message}`,
         );
     }
+    const ret = new BenchmarkResultMap();
+    for (const bench of json.benchmarks) {
+        const stats = bench.stats;
+        const name = bench.fullname;
+        const value = stats.ops;
+        const unit = 'iter/sec';
+        const range = `stddev: ${stats.stddev}`;
+        const [mean, meanUnit] = getHumanReadableUnitValue(stats.mean);
+        const extra = `mean: ${mean} ${meanUnit}\nrounds: ${stats.rounds}`;
+        ret.set(name, { name, value, unit, range, extra, biggerIsBetter });
+    }
+    return ret;
 }
 
-function extractGoogleCppResult(output: string): BenchmarkResult[] {
+function extractGoogleCppResult(output: string): BenchmarkResultMap {
+    const biggerIsBetter = getBiggerIsBetter('googlecpp');
+
     let json: GoogleCppBenchmarkJson;
     try {
         json = JSON.parse(output);
@@ -243,16 +319,18 @@ function extractGoogleCppResult(output: string): BenchmarkResult[] {
             `Output file for 'googlecpp' must be JSON file generated by --benchmark_format=json option: ${err.message}`,
         );
     }
-    return json.benchmarks.map(b => {
+    const ret = new BenchmarkResultMap();
+    for (const b of json.benchmarks) {
         const name = b.name;
         const value = b.real_time;
         const unit = b.time_unit + '/iter';
         const extra = `iterations: ${b.iterations}\ncpu: ${b.cpu_time} ${b.time_unit}\nthreads: ${b.threads}`;
-        return { name, value, unit, extra };
-    });
+        ret.set(name, { name, value, unit, extra, biggerIsBetter });
+    }
+    return ret;
 }
 
-function extractCatch2Result(output: string): BenchmarkResult[] {
+function extractCatch2Result(output: string): BenchmarkResultMap {
     // Example:
 
     // benchmark name samples       iterations    estimated <-- Start benchmark section
@@ -262,6 +340,7 @@ function extractCatch2Result(output: string): BenchmarkResult[] {
     // Fibonacci 20   100           2             8.4318 ms <-- Start actual benchmark
     //                43.186 us     41.402 us     46.246 us <-- Actual benchmark data
     //                11.719 us      7.847 us     17.747 us <-- Ignored
+    const biggerIsBetter = getBiggerIsBetter('catch2');
 
     const reTestCaseStart = /^benchmark name +samples +iterations +estimated/;
     const reBenchmarkStart = /(\d+) +(\d+) +(?:\d+(\.\d+)?) (?:ns|ms|us|s)\s*$/;
@@ -321,10 +400,10 @@ function extractCatch2Result(output: string): BenchmarkResult[] {
             );
         }
 
-        return { name, value, range, unit, extra };
+        return { name, value, range, unit, extra, biggerIsBetter };
     }
 
-    const ret = [];
+    const ret = new BenchmarkResultMap();
     while (lines.length > 0) {
         // Search header of benchmark section
         const line = nextLine()[0];
@@ -352,7 +431,7 @@ function extractCatch2Result(output: string): BenchmarkResult[] {
             if (res === null) {
                 break;
             }
-            ret.push(res);
+            ret.set(res.name, res);
             benchFound = true;
         }
         if (!benchFound) {
@@ -373,7 +452,7 @@ function extractCatch2Result(output: string): BenchmarkResult[] {
  */
 export async function extractResult(filePath: string, tool: string, commit: Commit): Promise<Benchmark> {
     const output = await fs.readFile(filePath, 'utf8');
-    let benches: BenchmarkResult[];
+    let benches: BenchmarkResultMap;
 
     switch (tool) {
         case 'cargo':
@@ -394,11 +473,14 @@ export async function extractResult(filePath: string, tool: string, commit: Comm
         case 'catch2':
             benches = extractCatch2Result(output);
             break;
+        case 'raw':
+            benches = extractRawResult(output);
+            break;
         default:
             throw new Error(`FATAL: Unexpected tool: '${tool}'`);
     }
 
-    if (benches.length === 0) {
+    if (benches.size === 0) {
         throw new Error(`No benchmark result was found in ${filePath}. Benchmark output was '${output}'`);
     }
 
