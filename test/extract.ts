@@ -257,6 +257,26 @@ describe('extractResult()', function() {
                 },
             ],
         },
+        {
+            tool: 'raw',
+            file: 'raw_output.json',
+            expected: [
+                {
+                    name: 'empty test (baseline)',
+                    range: 'heapTotal: 17.24, heapUsed: 8.75, external: 27.20, arrayBuffers: 25.46',
+                    unit: 'MB',
+                    value: 63.72,
+                    biggerIsBetter: false,
+                },
+                {
+                    name: 'openpgp.encrypt/decrypt (CFB, binary)',
+                    range: 'heapTotal: 23.38, heapUsed: 14.16, external: 53.60, arrayBuffers: 49.00',
+                    unit: 'MB',
+                    value: 99.71,
+                    biggerIsBetter: false,
+                },
+            ],
+        },
     ];
 
     const sortByName = (a: BenchmarkResult, b: BenchmarkResult) => a.name.localeCompare(b.name);
