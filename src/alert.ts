@@ -175,7 +175,7 @@ async function handleComment(
 
     const body = buildComment(benchName, curSuite, prevSuite, gitHubContext);
 
-    await publishComment(curSuite.commit.id, body, githubToken, gitHubContext);
+    await publishComment(curSuite.commit, body, githubToken, gitHubContext);
 }
 
 async function handleAlert(
@@ -215,10 +215,15 @@ async function handleAlert(
         if (!githubToken) {
             throw new Error("'comment-on-alert' input is set but 'github-token' input is not set");
         }
-        const res = await publishComment(curSuite.commit.id, body, githubToken, gitHubContext);
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        url = res.data.html_url;
-        message = body + `\nComment was generated at ${url}`;
+        try {
+            const res = await publishComment(curSuite.commit, body, githubToken, gitHubContext);
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            url = res.data.html_url;
+            message = body + `\nComment was generated at ${url}`;
+        } catch (err) {
+            console.error('Failed to publish performance alert comment:', err.message);
+            console.log(message);
+        }
     }
 
     if (failOnAlert) {
