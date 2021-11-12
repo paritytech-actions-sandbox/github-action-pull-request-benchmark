@@ -147,7 +147,7 @@ async function handleComment(benchName, curSuite, prevSuite, config, gitHubConte
     }
     core.debug('Commenting about benchmark comparison');
     const body = buildComment(benchName, curSuite, prevSuite, gitHubContext);
-    await git_1.publishComment(curSuite.commit.id, body, githubToken, gitHubContext);
+    await git_1.publishComment(curSuite.commit, body, githubToken, gitHubContext);
 }
 async function handleAlert(benchName, curSuite, prevSuite, config, gitHubContext) {
     const { alertThreshold, githubToken, commentOnAlert, failOnAlert, alertCommentCcUsers, failThreshold } = config;
@@ -168,10 +168,16 @@ async function handleAlert(benchName, curSuite, prevSuite, config, gitHubContext
         if (!githubToken) {
             throw new Error("'comment-on-alert' input is set but 'github-token' input is not set");
         }
-        const res = await git_1.publishComment(curSuite.commit.id, body, githubToken, gitHubContext);
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        url = res.data.html_url;
-        message = body + `\nComment was generated at ${url}`;
+        try {
+            const res = await git_1.publishComment(curSuite.commit, body, githubToken, gitHubContext);
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            url = res.data.html_url;
+            message = body + `\nComment was generated at ${url}`;
+        }
+        catch (err) {
+            console.error('Failed to publish performance alert comment:', err.message);
+            console.log(message);
+        }
     }
     if (failOnAlert) {
         // Note: alertThreshold is smaller than failThreshold. It was checked in config.ts
@@ -743,7 +749,8 @@ function getLatestPRCommit(githubContext) {
     const message = pr.title;
     const id = pr.head.sha;
     const timestamp = pr.head.repo.updated_at;
-    const url = `${pr.html_url}/commits/${id}`;
+    const repoUrl = pr.html_url;
+    const url = `${repoUrl}/commits/${id}`;
     const name = pr.head.user.login;
     const user = {
         name,
@@ -769,7 +776,8 @@ function getBaseCommit(githubContext) {
     const message = pr.base.label;
     const id = pr.base.sha;
     const timestamp = pr.base.repo.updated_at;
-    const url = `${pr.base.repo.html_url}/commits/${id}`;
+    const repoUrl = pr.base.repo.html_url;
+    const url = `${repoUrl}/commits/${id}`;
     const name = pr.base.user.login;
     const user = {
         name,
@@ -798,20 +806,19 @@ function getCurrentRepo(gitHubContext) {
     return repo;
 }
 exports.getCurrentRepo = getCurrentRepo;
-async function publishComment(commitId, body, token, gitHubContext) {
-    var _a;
-    const repo = getCurrentRepo(gitHubContext);
-    // eslint-disable-next-line @typescript-eslint/camelcase
-    const repoUrl = (_a = repo.html_url) !== null && _a !== void 0 ? _a : '';
+async function publishComment(targetCommit, body, token, gitHubContext) {
+    const currentRepo = getCurrentRepo(gitHubContext);
+    const commitId = targetCommit.id;
     const client = new github.GitHub(token);
+    // NB: we always point to the current repo as posting comments on PRs from forked repos will fail anyway due to GITHUB_TOKEN permission limitations
     const res = await client.repos.createCommitComment({
-        owner: repo.owner.login,
-        repo: repo.name,
+        owner: currentRepo.owner.login,
+        repo: currentRepo.name,
         // eslint-disable-next-line @typescript-eslint/camelcase
         commit_sha: commitId,
         body,
     });
-    const commitUrl = `${repoUrl}/commit/${commitId}`;
+    const commitUrl = `${targetCommit.url}`;
     console.log(`Comment was sent to ${commitUrl}. Response:`, res.status, res.data);
     return res;
 }
