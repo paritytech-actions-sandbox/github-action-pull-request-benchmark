@@ -121,6 +121,7 @@ describe('comparexBenchmark()', function() {
             sandbox.stub(core, 'debug');
             sandbox.stub(core, 'warning');
             publishCommentStub = sandbox.stub(git, 'publishComment');
+            sandbox.stub(git, 'getLatestWorkflowRunAttempt');
         });
 
         afterEach(function() {

@@ -1,7 +1,7 @@
 import * as core from '@actions/core';
 import { Benchmark, BenchmarkResult } from './extract';
 import { Config } from './config';
-import { GitHubContext, getCurrentRepo, publishComment } from './git';
+import { GitHubContext, getCurrentRepo, publishComment, getLatestWorkflowRunAttempt } from './git';
 
 export type BenchmarkSuites = { [name: string]: Benchmark[] };
 export interface DataJson {
@@ -38,10 +38,6 @@ function findAlerts(curSuite: Benchmark, prevSuite: Benchmark, threshold: number
         const ratio = getRatio(current, prev);
 
         if (ratio > threshold) {
-            core.warning(
-                `Performance alert! Previous value was ${prev.value} and current value is ${current.value}.` +
-                    ` It is ${ratio}x worse than previous exceeding a ratio threshold ${threshold}`,
-            );
             alerts.push({ current, prev, ratio });
         }
     }
@@ -185,12 +181,39 @@ async function handleAlert(
     config: Config,
     gitHubContext: GitHubContext,
 ) {
-    const { alertThreshold, githubToken, commentOnAlert, failOnAlert, alertCommentCcUsers, failThreshold } = config;
+    const {
+        alertThreshold,
+        githubToken,
+        commentOnAlert,
+        failOnAlert,
+        alertCommentCcUsers,
+        failThreshold,
+        fileToAnnotate,
+    } = config;
 
-    if (!commentOnAlert && !failOnAlert) {
-        core.debug('Alert check was skipped because both comment-on-alert and fail-on-alert were disabled');
-        return;
-    }
+    // annotations are not cleared when re-running a workflow, so we include the run attempt # in the annotation body
+    const workflowRunAttempt = githubToken ? await getLatestWorkflowRunAttempt(githubToken, gitHubContext) : null;
+    const generateWarningAnnotation = ({ prev, current, ratio }: Alert) => {
+        core.warning(
+            `Previous value was ${prev.value} and current value is ${current.value}.` +
+                ` It is ${ratio}x worse, exceeding the warning threshold of ${floatStr(alertThreshold)}.`,
+            {
+                title: `${benchName} (attempt #${workflowRunAttempt}): potential performance regression detected for test '${current.name}'`,
+                file: fileToAnnotate,
+            },
+        );
+    };
+
+    const generateErrorAnnotation = ({ prev, current, ratio }: Alert) => {
+        core.error(
+            `Previous value was ${prev.value} and current value is ${current.value}.` +
+                ` It is ${ratio}x worse, exceeding the failure threshold of ${floatStr(failThreshold)}.`,
+            {
+                title: `${benchName} (attempt #${workflowRunAttempt}): performance regression detected for test '${current.name}'`,
+                file: fileToAnnotate,
+            },
+        );
+    };
 
     const alerts = findAlerts(curSuite, prevSuite, alertThreshold);
     if (alerts.length === 0) {
@@ -226,13 +249,23 @@ async function handleAlert(
         }
     }
 
+    const failures = alerts.filter(a => a.ratio > failThreshold);
+
+    if (failThreshold !== alertThreshold) {
+        const warnings = alerts.filter(a => a.ratio <= failThreshold);
+        warnings.forEach(generateWarningAnnotation);
+    } // else whether we error or warn on all alerts depends on the `fail on alert` flag
+
     if (failOnAlert) {
+        failures.forEach(generateErrorAnnotation);
+
         // Note: alertThreshold is smaller than failThreshold. It was checked in config.ts
         const len = alerts.length;
         const threshold = floatStr(failThreshold);
-        const failures = alerts.filter(a => a.ratio > failThreshold);
+
         if (failures.length > 0) {
             core.debug('Mark this workflow as fail since one or more fatal alerts found');
+
             if (failThreshold !== alertThreshold) {
                 // Prepend message that explains how these alerts were detected with different thresholds
                 message = `${failures.length} of ${len} alerts exceeded the failure threshold \`${threshold}\` specified by fail-threshold input:\n\n${message}`;
@@ -244,6 +277,8 @@ async function handleAlert(
                     ` all of them did not exceed the failure threshold ${threshold}`,
             );
         }
+    } else {
+        failures.forEach(generateWarningAnnotation);
     }
 }
 

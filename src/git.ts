@@ -97,9 +97,9 @@ export function getCurrentRepo(gitHubContext: GitHubContext) {
 export async function publishComment(targetCommit: Commit, body: string, token: string, gitHubContext: GitHubContext) {
     const currentRepo = getCurrentRepo(gitHubContext);
     const commitId = targetCommit.id;
-    const client = new github.GitHub(token);
+    const api = github.getOctokit(token).rest;
     // NB: we always point to the current repo as posting comments on PRs from forked repos will fail anyway due to GITHUB_TOKEN permission limitations
-    const res = await client.repos.createCommitComment({
+    const res = await api.repos.createCommitComment({
         owner: currentRepo.owner.login,
         repo: currentRepo.name,
         // eslint-disable-next-line @typescript-eslint/camelcase
@@ -111,4 +111,18 @@ export async function publishComment(targetCommit: Commit, body: string, token: 
     console.log(`Comment was sent to ${commitUrl}. Response:`, res.status, res.data);
 
     return res;
+}
+
+export async function getLatestWorkflowRunAttempt(token: string, gitHubContext: GitHubContext) {
+    const workflowRepo = getCurrentRepo(gitHubContext);
+
+    const octokit = github.getOctokit(token);
+    const res = await octokit.rest.actions.getWorkflowRun({
+        owner: workflowRepo.owner.login,
+        repo: workflowRepo.name,
+        // eslint-disable-next-line @typescript-eslint/camelcase
+        run_id: gitHubContext.runId,
+    });
+
+    return res.data.run_attempt;
 }

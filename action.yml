@@ -44,7 +44,9 @@ inputs:
   alert-comment-cc-users:
     description: 'Github users that will be mentioned in commit comment on alerts. The usernames need to be prefixed by @, and multiple users need to be comma-separated (e.g. "@foo,@bar"). '
     required: false
-
+  file-to-annotate:
+    description: 'Create alert/failure annotations on the given file, even if unchanged. The specified filepath can be relative to the repo root'
+    required: false
 runs:
   using: 'node12'
   main: 'dist/index.js'

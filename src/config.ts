@@ -16,6 +16,7 @@ export interface Config {
     failOnAlert: boolean;
     failThreshold: number;
     alertCommentCcUsers: string[];
+    fileToAnnotate?: string;
 }
 
 export const VALID_TOOLS: Set<string> = new Set(['cargo', 'go', 'benchmarkjs', 'pytest', 'googlecpp', 'catch2', 'raw']);
@@ -55,7 +56,14 @@ async function resolveFilePath(p: string): Promise<string> {
     return p;
 }
 
-async function validateFilePath(filePath: string, inputName: string): Promise<string> {
+async function getAndValidateFilePath(inputName: string, required: false): Promise<string | undefined>;
+async function getAndValidateFilePath(inputName: string, required?: true): Promise<string>;
+async function getAndValidateFilePath(inputName: string, required = true): Promise<string | undefined> {
+    const filePath = core.getInput(inputName);
+    if (!filePath && !required) {
+        return undefined;
+    }
+
     try {
         return await resolveFilePath(filePath);
     } catch (err) {
@@ -137,14 +145,8 @@ function validateAlertThreshold(alertThreshold: number | null, failThreshold: nu
 export async function configFromJobInput(): Promise<Config> {
     const tool: string = core.getInput('tool');
     const name: string = core.getInput('name');
-    const prBenchmarkFilePath: string = await validateFilePath(
-        core.getInput('pr-benchmark-file-path'),
-        'pr-benchmark-file-path',
-    );
-    const baseBenchmarkFilePath: string = await validateFilePath(
-        core.getInput('base-benchmark-file-path'),
-        'base-benchmark-file-path',
-    );
+    const prBenchmarkFilePath: string = await getAndValidateFilePath('pr-benchmark-file-path');
+    const baseBenchmarkFilePath: string = await getAndValidateFilePath('base-benchmark-file-path');
     const githubToken: string | undefined = core.getInput('github-token') || undefined;
     const commentAlways = getBoolInput('comment-always');
     const commentOnAlert = getBoolInput('comment-on-alert');
@@ -152,6 +154,7 @@ export async function configFromJobInput(): Promise<Config> {
     const failThreshold = getPercentageInput('fail-threshold') || alertThreshold;
     const failOnAlert = getBoolInput('fail-on-alert');
     const alertCommentCcUsers = getCommaSeparatedInput('alert-comment-cc-users');
+    const fileToAnnotate = core.getInput('file-to-annotate') || undefined;
 
     validateToolType(tool);
     validateName(name);
@@ -172,5 +175,6 @@ export async function configFromJobInput(): Promise<Config> {
         failThreshold: failThreshold!,
         failOnAlert,
         alertCommentCcUsers,
+        fileToAnnotate,
     };
 }
